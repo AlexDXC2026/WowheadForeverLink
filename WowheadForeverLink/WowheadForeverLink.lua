@@ -501,12 +501,50 @@ local function DecorateQuestieIcon(frame)
 		local id = self.data and self.data.Id
 		if type(id) == "number" then Safe("questie icon", OpenQuest, id) end
 	end)
-	frame:HookScript("OnEnter", function(self)
-		if GameTooltip:IsShown() and GameTooltip:GetOwner() == self and self.data and type(self.data.Id) == "number" then
-			GameTooltip:AddLine(L.QUESTIE_ALT_CLICK, 0.22, 0.75, 0.93)
-			GameTooltip:Show()
+end
+
+-- Extra tooltip lines for a hovered Questie icon: for an available quest ("!"),
+-- whether the player can take it; for any quest icon, the Alt+click hint.
+local function AppendQuestieTooltip(tooltip, icon)
+	local data = icon and icon.data
+	local id = data and data.Id
+	if type(id) ~= "number" then return end
+	if data.Type == "available" then
+		local ok, lines = pcall(QuestRequirements, QuestieModule("QuestieDB"), id)
+		if ok and lines then
+			tooltip:AddLine(" ")
+			for _, line in ipairs(lines) do tooltip:AddLine(line, 1, 1, 1) end
+		elseif not ok then
+			Diag("tooltip requirements: " .. tostring(lines))
 		end
+	end
+	tooltip:AddLine(L.QUESTIE_ALT_CLICK, 0.22, 0.75, 0.93)
+	tooltip:Show()
+end
+
+-- Questie draws map icon tooltips in MapIconTooltip.ShowOnTooltip and redraws
+-- them with Tooltip._Rebuild when a modifier key changes: add our lines both times.
+local function HookQuestieTooltip()
+	if hooked.questieTooltip then return end
+	local module = QuestieModule("MapIconTooltip")
+	if not (module and type(module.ShowOnTooltip) == "function") then return end
+	hooksecurefunc(module, "ShowOnTooltip", function(icon, tooltip)
+		Safe("questie tooltip", function()
+			if type(tooltip) ~= "table" or tooltip._owner ~= icon then return end -- Questie skipped this show
+			-- Questie assigns a new _Rebuild on every show: wrap each new one once.
+			local rebuild = tooltip._Rebuild
+			if type(rebuild) == "function" and rebuild ~= tooltip.wowheadForeverLinkRebuild then
+				local wrapper = function(tt, ...)
+					rebuild(tt, ...)
+					Safe("questie tooltip", AppendQuestieTooltip, tt, tt._owner)
+				end
+				tooltip._Rebuild = wrapper
+				tooltip.wowheadForeverLinkRebuild = wrapper
+			end
+			AppendQuestieTooltip(tooltip, icon)
+		end)
 	end)
+	hooked.questieTooltip = true
 end
 
 -- Questie names its icons QuestieFrame1, QuestieFrame2...: covers icons created before the hook.
@@ -611,6 +649,7 @@ local function SlashCommand(text)
 			questFrame = hooked.questFrame or false,
 			menus = hooked.menus or false,
 			questie = hooked.questie or false,
+			questieTooltip = hooked.questieTooltip or false,
 			target = cachedTarget and cachedTarget.kind or "none",
 		}
 		for k, v in pairs(DB.status) do print("  " .. k .. " = " .. tostring(v)) end
@@ -646,6 +685,7 @@ events:SetScript("OnEvent", function(_, event, arg1)
 		Safe("hooks", HookQuestFrames)
 		Safe("menus", HookUnitMenus)
 		Safe("questie", HookQuestieMap)
+		Safe("questie tooltip", HookQuestieTooltip)
 		Print(L.READY)
 	elseif event == "PLAYER_TARGET_CHANGED" then
 		Safe("target changed", UpdateTargetButton)
