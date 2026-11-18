@@ -1,0 +1,72 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check that the tag matches the addon and app versions
+        run: |
+          VERSION="${TAG#v}"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          grep -q "^## Version: $VERSION\s*$" WowheadForeverLink/WowheadForeverLink.toc || { echo "::error::.toc version is not $VERSION"; exit 1; }
+          grep -q "<Version>$VERSION</Version>" companion/WowheadForeverLink.Companion.csproj || { echo "::error::.csproj version is not $VERSION"; exit 1; }
+          grep -q "^## \[$VERSION\]" CHANGELOG.md || { echo "::error::CHANGELOG.md has no [$VERSION] section"; exit 1; }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Addon tests
+        working-directory: tests
+        run: npm ci && node run.js
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Build companion app
+        run: |
+          dotnet publish companion -c Release -o dist/companion
+          mkdir -p release
+          cp dist/companion/WowheadForeverLink.exe release/WowheadForeverLink-Companion.exe
+
+      - name: Package addon
+        shell: pwsh
+        run: Compress-Archive -Path WowheadForeverLink -DestinationPath "release/WowheadForeverLink-$env:TAG.zip"
+
+      - name: Checksums
+        working-directory: release
+        run: sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+
+      - name: Release notes from CHANGELOG.md
+        run: |
+          awk -v v="$VERSION" '
+            $0 ~ "^## \\[" v "\\]" { on = 1; next }
+            on && /^## \[/ { exit }
+            on { print }
+          ' CHANGELOG.md > notes.md
+          cat >> notes.md <<'EOF'
+
+          ---
+          **Addon**: unzip into `World of Warcraft/_forever_/Interface/AddOns/` (or install it from CurseForge).
+          **Companion app** (optional, Windows): download `WowheadForeverLink-Companion.exe` and run it. Nothing to install.
+          Windows SmartScreen may warn because the app is not code-signed yet: *More info → Run anyway*. Verify the file with `SHA256SUMS.txt`.
+          EOF
+          cat notes.md
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$TAG" release/* --title "Wowhead Forever Link $TAG" --notes-file notes.md --verify-tag

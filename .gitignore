@@ -1,0 +1,14 @@
+# Build output
+dist/
+companion/bin/
+companion/obj/
+
+# Dependencies
+node_modules/
+
+# Editors and OS
+.vs/
+.vscode/
+*.user
+Thumbs.db
+desktop.ini

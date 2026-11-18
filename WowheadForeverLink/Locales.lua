@@ -1,0 +1,96 @@
+-- Localized strings. English is the fallback for every client language.
+local _, ns = ...
+
+local L = {
+	READY = "ready. Right-click a portrait, use the button next to your target or the icons in the quest log. /wh help",
+	COPIED = "link copied.",
+	COPY_HINT = "Ctrl+C to copy, then paste it in your browser · Esc closes",
+	COPY_HINT_GAMEPAD = "Click the box, press Ctrl+C and paste it in your browser",
+	NO_UNIT = "target an NPC or enemy (players have no page).",
+	NO_MOUSEOVER = "hover over an NPC or enemy.",
+	UNIT_HIDDEN = "the game is hiding this unit's data right now (combat or instance). Try again out of combat.",
+	NO_QUEST = "no quest selected.",
+	NO_LINK_YET = "no link yet.",
+	LOOT = "loot",
+	CONTENTS = "contents",
+	SEARCH = "search",
+	NPC = "NPC %d",
+	OBJECT = "Object %d",
+	QUEST = "Quest %d",
+	LAST_LINK = "Last link",
+	TARGET_BUTTON_TITLE = "Wowhead: target's loot",
+	TARGET_BUTTON_CLICK = "Click: NPC page on the loot tab (trash, good and quest drops).",
+	TARGET_BUTTON_MOVE = "Shift + drag: move this button. /wh reset puts it back.",
+	QUEST_TOOLTIP = "View quest on Wowhead",
+	QUEST_TOOLTIP_NPC = "View this quest on Wowhead",
+	MENU_ENTRY = "View on Wowhead",
+	BINDING_TARGET = "Wowhead: target",
+	BINDING_MOUSEOVER = "Wowhead: unit under the mouse",
+	ERROR_IN = "error in %s (details: /wh diag)",
+	RESET_DONE = "target button moved back to its place.",
+	QUEST_USAGE = "usage: /wh q <quest ID>",
+	DIAG_SAVED = "type /reload to save this to SavedVariables.",
+	HELP = {
+		"commands:",
+		"  /wh  — target's loot",
+		"  /wh q <id>  — quest by ID",
+		"  /wh <text>  — search Wowhead",
+		"  /wh last  — show the last link again",
+		"  /wh reset  — move the target button back to its place",
+		"  /wh diag  — addon status",
+	},
+}
+
+local esES = {
+	READY = "listo. Clic derecho en un retrato, botón junto al objetivo o iconos del registro de misiones. /wh ayuda",
+	COPIED = "enlace copiado.",
+	COPY_HINT = "Ctrl+C para copiar y pégalo en el navegador · Esc cierra",
+	COPY_HINT_GAMEPAD = "Haz clic en la caja, Ctrl+C y pégalo en el navegador",
+	NO_UNIT = "selecciona un PNJ o enemigo (los jugadores no tienen ficha).",
+	NO_MOUSEOVER = "pon el ratón sobre un PNJ o enemigo.",
+	UNIT_HIDDEN = "el juego oculta ahora los datos de esta unidad (combate o instancia). Prueba fuera de combate.",
+	NO_QUEST = "no hay misión seleccionada.",
+	NO_LINK_YET = "aún no hay enlaces.",
+	LOOT = "botín",
+	CONTENTS = "contenido",
+	SEARCH = "búsqueda",
+	NPC = "PNJ %d",
+	OBJECT = "Objeto %d",
+	QUEST = "Misión %d",
+	LAST_LINK = "Último enlace",
+	TARGET_BUTTON_TITLE = "Wowhead: botín del objetivo",
+	TARGET_BUTTON_CLICK = "Clic: ficha del PNJ en la pestaña de botín (normal, bueno y de misión).",
+	TARGET_BUTTON_MOVE = "Mayús + arrastrar: mover el botón. /wh reset lo devuelve a su sitio.",
+	QUEST_TOOLTIP = "Ver misión en Wowhead",
+	QUEST_TOOLTIP_NPC = "Ver esta misión en Wowhead",
+	MENU_ENTRY = "Ver en Wowhead",
+	BINDING_TARGET = "Wowhead del objetivo",
+	BINDING_MOUSEOVER = "Wowhead de lo que hay bajo el ratón",
+	ERROR_IN = "error en %s (detalle: /wh diag)",
+	RESET_DONE = "botón del objetivo devuelto a su sitio.",
+	QUEST_USAGE = "uso: /wh m <número de misión>",
+	DIAG_SAVED = "haz /reload para que quede guardado en SavedVariables.",
+	HELP = {
+		"comandos:",
+		"  /wh  — botín del objetivo",
+		"  /wh m <id>  — misión por número",
+		"  /wh <texto>  — buscar en Wowhead",
+		"  /wh ultima  — vuelve a mostrar el último enlace",
+		"  /wh reset  — devuelve el botón del objetivo a su sitio",
+		"  /wh diag  — estado del addon",
+	},
+}
+
+local overrides = { esES = esES, esMX = esES }
+local locale = GetLocale and GetLocale() or "enUS"
+for k, v in pairs(overrides[locale] or {}) do L[k] = v end
+
+-- Wowhead language path for each client locale ("" = English).
+local WOWHEAD_LANG = {
+	deDE = "de/", esES = "es/", esMX = "es/", frFR = "fr/", itIT = "it/",
+	ptBR = "pt/", ruRU = "ru/", koKR = "ko/", zhCN = "cn/", zhTW = "tw/",
+}
+
+ns.L = L
+ns.locale = locale
+ns.wowheadBase = "https://www.wowhead.com/forever/" .. (WOWHEAD_LANG[locale] or "")

@@ -1,0 +1,12 @@
+{
+  "name": "wowheadforeverlink-tests",
+  "private": true,
+  "description": "Offline tests for the Wowhead Forever Link addon (Lua 5.1 syntax check + simulated WoW API).",
+  "scripts": {
+    "test": "node run.js"
+  },
+  "dependencies": {
+    "fengari": "0.1.5",
+    "luaparse": "0.3.1"
+  }
+}

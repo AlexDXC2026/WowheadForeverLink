@@ -1,0 +1,8 @@
+<Bindings>
+	<Binding name="WOWHEADFOREVERLINK_TARGET" header="WOWHEADFOREVERLINK" category="ADDONS">
+		WowheadForeverLink_Target()
+	</Binding>
+	<Binding name="WOWHEADFOREVERLINK_MOUSEOVER" category="ADDONS">
+		WowheadForeverLink_Mouseover()
+	</Binding>
+</Bindings>
