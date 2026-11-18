@@ -10,6 +10,7 @@ Right-click a portrait, click the small magnifier next to your target, or the ic
 - **Button next to the target frame**: opens the NPC page on the **Loot** tab — trash, good and quest drops with their drop rates. *Shift + drag* to move it.
 - **Quest log**: an icon on every quest, plus a **Wowhead** button in the quest details.
 - **Quest giver window**: check a quest on Wowhead before accepting it.
+- **Questie map icons**: **Alt + click** a quest icon on the map or minimap to open it on Wowhead, and see right away if you can take it: required level and previous quests, each marked done or missing.
 - **Key bindings**: Wowhead for your target, or for whatever is under the mouse.
 - **Client language**: English, Español, Deutsch, Français, Italiano, Português, Русский, 한국어, 中文.
 - Works in combat and instances whenever the game allows reading the unit; otherwise it falls back to what it read when you targeted it.
@@ -55,6 +56,7 @@ Bugs and ideas: [GitHub issues](https://github.com/AlexDXC2026/WowheadForeverLin
 - **Clic derecho en un retrato** → **Ver en Wowhead**.
 - **Botón junto al marco del objetivo**: ficha del PNJ en la pestaña **Botín** (normal, bueno y de misión, con porcentajes).
 - **Registro de misiones** y **ventana del PNJ**: icono para ver la misión en Wowhead.
+- **Iconos de Questie en el mapa**: **Alt + clic** abre la misión en Wowhead y te dice si puedes cogerla (nivel y misiones previas hechas o pendientes).
 - Enlaces siempre a la sección **Forever**, en el **idioma de tu cliente**.
 - Comandos: `/wh`, `/wh m <id>`, `/wh <texto>`, `/wh ultima`, `/wh reset`.
 

@@ -42,6 +42,13 @@ Frame.__index = function(_, k)
 	return function() end
 end
 function Frame:SetScript(n, f) self.scripts[n] = f end
+function Frame:HookScript(n, f)
+	local old = self.scripts[n]
+	self.scripts[n] = function(...) if old then old(...) end f(...) end
+end
+function Frame:SetOwner(owner) self.owner = owner; self.lines = {} end
+function Frame:GetOwner() return self.owner end
+function Frame:AddLine(text) self.lines = self.lines or {}; self.lines[#self.lines + 1] = text end
 function Frame:RegisterEvent(e) self.events[e] = true end
 function Frame:Show() self.shown = true end
 function Frame:Hide() local was = self.shown; self.shown = false; if was and self.scripts.OnHide then self.scripts.OnHide(self) end end
@@ -102,6 +109,37 @@ function NewMenuRoot()
 	function r:CreateButton(t, f) self.buttons[#self.buttons + 1] = { text = t, func = f } end
 	return r
 end
+
+-- Questie (optional dependency): database, frame pool and map icons
+ALT = false
+function IsAltKeyDown() return ALT end
+function UnitLevel() return 36 end
+COMPLETED = { [100] = true }
+C_QuestLog.IsOnQuest = function(id) return id == 783 end
+C_QuestLog.IsQuestFlaggedCompleted = function(id) return COMPLETED[id] == true end
+WorldMapFrame = NewFrame(UIParent)
+QUESTIE_QUESTS = {
+	[100] = { name = "First Step" },
+	[101] = { name = "Second Step" },
+	[500] = { name = "Into the Swamp", requiredLevel = 30, preQuestGroup = { 100, -101 } },
+	[600] = { name = "High Road", requiredLevel = 40, preQuestSingle = { 100 } },
+	[700] = { name = "Free Quest" },
+}
+local questieDB = {
+	GetQuest = function(id) return QUESTIE_QUESTS[id] end,
+	QueryQuestSingle = function(id, key) local q = QUESTIE_QUESTS[id]; return q and q[key] end,
+	IsDoableVerbose = function(id) return id == 500 and "Unavailable: Missing pre-quest" or "Available" end,
+}
+local questieFrames = 1
+local questiePool = {}
+function questiePool:GetFrame()
+	questieFrames = questieFrames + 1
+	return CreateFrame("Button", "QuestieFrame" .. questieFrames)
+end
+CreateFrame("Button", "QuestieFrame1") -- created before the addon hooks the pool
+QuestieLoader = {
+	ImportModule = function(_, name) return ({ QuestieDB = questieDB, QuestieFramePool = questiePool })[name] end,
+}
 
 -- Load the addon files in .toc order with a shared namespace
 local ns = {}
@@ -215,6 +253,47 @@ root = NewMenuRoot(); MENU_CALLBACKS.MENU_UNIT_TARGET(nil, root, { unit = "targe
 check(#root.buttons == 0, "menu entry on a player")
 root = NewMenuRoot(); MENU_CALLBACKS.MENU_UNIT_TARGET(nil, root, nil)
 check(#root.buttons == 0, "menu without context")
+
+-- Questie map icons: Alt + click opens the quest with its requirements
+local info = function() return WowheadForeverLinkWindow.info end
+check(QuestieFrame1.wowheadForeverLink, "icon created before the hook not decorated")
+local icon = questiePool:GetFrame()
+check(icon.wowheadForeverLink, "icon from the pool not decorated")
+icon.data = { Id = 500 }
+SlashCmdList.WOWHEADFOREVERLINK("q 5")
+icon.scripts.OnClick(icon, "LeftButton")
+check(lastURL() == B .. "quest=5", "plain click on a Questie icon opened Wowhead")
+ALT = true; icon.scripts.OnClick(icon, "LeftButton"); ALT = false
+check(lastURL() == B .. "quest=500", "Alt+click URL: " .. tostring(lastURL()))
+check(WowheadForeverLinkWindow.title.text == "Into the Swamp", "Questie quest name as title")
+local text = tostring(info().text)
+check(info():IsShown(), "requirements hidden")
+check(text:find("Missing pre-quest", 1, true), "Questie availability text")
+check(text:find("ReadyCheck-Ready:14|t " .. ns.L.REQ_LEVEL:format(30, 36), 1, true), "level met")
+check(text:find("ReadyCheck-Ready:14|t First Step", 1, true), "completed pre-quest")
+check(text:find("ReadyCheck-NotReady:14|t Second Step", 1, true), "missing pre-quest (negative ID)")
+check(text:find(ns.L.REQ_ALL, 1, true), "all-of label")
+
+icon.data = { Id = 600 }
+ALT = true; icon.scripts.OnClick(icon, "LeftButton"); ALT = false
+text = tostring(info().text)
+check(text:find("ReadyCheck-NotReady:14|t " .. ns.L.REQ_LEVEL:format(40, 36), 1, true), "level not met")
+check(text:find(ns.L.REQ_ONE, 1, true), "one-of label")
+
+icon.data = { Id = 700 }
+ALT = true; icon.scripts.OnClick(icon, "LeftButton"); ALT = false
+check(tostring(info().text):find(ns.L.REQ_NONE, 1, true), "no pre-quests line")
+
+-- A quest already in the log shows no requirements
+SlashCmdList.WOWHEADFOREVERLINK("q 783")
+check(not info():IsShown(), "requirements shown for a quest in the log")
+
+-- Tooltip hint on Questie icons
+GameTooltip:SetOwner(icon); GameTooltip:Show()
+icon.scripts.OnEnter(icon)
+check(GameTooltip.lines[1] == ns.L.QUESTIE_ALT_CLICK, "no Alt+click hint in the tooltip")
+SlashCmdList.WOWHEADFOREVERLINK("diag")
+check(WowheadForeverLinkDB.status.questie, "diag questie")
 
 -- Any red error line in chat means a code path failed
 for _, l in ipairs(LOG) do
