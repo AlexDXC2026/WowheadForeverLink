@@ -6,6 +6,9 @@ The addon and the companion app share one version number.
 
 ## [Unreleased]
 
+### Fixed
+- Companion app: after running for a few minutes, the floating window opened behind the game again. Windows' foreground lock refuses `HWND_TOPMOST` from a background app once its start-up grace period (`ForegroundLockTimeout`) ends. The window is now created topmost from the start, and if Windows still refuses, the call is retried while sharing the game thread's input state (focus does not move).
+
 ## [1.2.1] - 2026-11-18
 
 ### Fixed
