@@ -139,6 +139,8 @@ sealed class OverlayForm : Form
     [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr hWnd, int cmd);
     [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr hWnd);
     [DllImport("user32.dll")] static extern int GetWindowLong(IntPtr hWnd, int index);
+    [DllImport("user32.dll")] static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool attach);
+    [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
     const int SW_SHOWNOACTIVATE = 4, GWL_EXSTYLE = -20, WS_EX_TOPMOST = 0x8;
     static readonly IntPtr HWND_TOPMOST = new(-1);
     static readonly IntPtr HWND_NOTOPMOST = new(-2);
@@ -172,6 +174,10 @@ sealed class OverlayForm : Form
         try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
         PlaceInitially();
         Opacity = Math.Clamp(cfg.Opacity, 0.3, 1.0);
+        // Created topmost from the start. Later SetWindowPos(HWND_TOPMOST) calls
+        // are refused by Windows' foreground lock once the app has been running
+        // for a while (ForegroundLockTimeout) and the game has the focus.
+        TopMost = cfg.AlwaysOnTop;
 
         Controls.Add(web);
         Controls.Add(CreateToolbar());
@@ -486,7 +492,7 @@ sealed class OverlayForm : Form
         // hidden or behind the game in some cases.
         ShowWindow(Handle, SW_SHOWNOACTIVATE);
         ApplyTopMost();
-        Log($"window shown at {Bounds} · visible = {IsWindowVisible(Handle)} · topmost = {(GetWindowLong(Handle, GWL_EXSTYLE) & WS_EX_TOPMOST) != 0}");
+        Log($"window shown at {Bounds} · visible = {IsWindowVisible(Handle)} · topmost = {IsTopMost()}");
         webInit ??= InitWebView();
     }
 
@@ -505,12 +511,24 @@ sealed class OverlayForm : Form
         if (!navigated) Navigate(Strings.WowheadHome);
     }
 
+    bool IsTopMost() => (GetWindowLong(Handle, GWL_EXSTYLE) & WS_EX_TOPMOST) != 0;
+
     void ApplyTopMost()
     {
         TopMost = cfg.AlwaysOnTop;
         // Re-assert above the (borderless) game window without stealing focus.
-        uint show = Visible ? SWP_SHOWWINDOW : 0;
-        SetWindowPos(Handle, cfg.AlwaysOnTop ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | show);
+        uint flags = SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | (Visible ? SWP_SHOWWINDOW : 0);
+        SetWindowPos(Handle, cfg.AlwaysOnTop ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, flags);
+        if (!cfg.AlwaysOnTop || IsTopMost()) return;
+
+        // Still refused: share the input state of the foreground (game) thread
+        // for this one call, which lifts the foreground lock. Focus does not move.
+        uint gameThread = GetWindowThreadProcessId(GetForegroundWindow(), out _);
+        uint ownThread = GetCurrentThreadId();
+        bool attached = gameThread != 0 && gameThread != ownThread && AttachThreadInput(ownThread, gameThread, true);
+        try { SetWindowPos(Handle, HWND_TOPMOST, 0, 0, 0, 0, flags); }
+        finally { if (attached) AttachThreadInput(ownThread, gameThread, false); }
+        Log($"topmost refused, retried with AttachThreadInput (attached = {attached}) · topmost = {IsTopMost()}");
     }
 
     async Task InitWebView()
