@@ -98,6 +98,14 @@ local function CreateWindow()
 	f.hint:SetPoint("TOP", e, "BOTTOM", -4, -10)
 	f.hint:SetText(L.COPY_HINT)
 
+	-- Optional extra lines (quest requirements from Questie).
+	f.info = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+	f.info:SetPoint("TOPLEFT", 24, -96)
+	f.info:SetWidth(352)
+	f.info:SetJustifyH("LEFT")
+	f.info:SetJustifyV("TOP")
+	f.info:SetSpacing(2)
+
 	e:SetScript("OnEscapePressed", function() f:Hide() end)
 	e:SetScript("OnEnterPressed", function() f:Hide() end)
 	-- Typing restores the URL: the box only exists to copy from.
@@ -131,12 +139,23 @@ local function CreateWindow()
 	return f
 end
 
-local function ShowURL(url, title)
+local WINDOW_HEIGHT = 118
+
+local function ShowURL(url, title, infoLines)
 	window = window or CreateWindow()
 	window.generation = (window.generation or 0) + 1
 	window.url = url
 	window.title:SetText(title or "Wowhead")
 	window.edit:SetText(url)
+	if infoLines and #infoLines > 0 then
+		window.info:SetText(table.concat(infoLines, "\n"))
+		window.info:Show()
+		window:SetHeight(WINDOW_HEIGHT + 8 + (window.info:GetStringHeight() or 0))
+	else
+		window.info:SetText("")
+		window.info:Hide()
+		window:SetHeight(WINDOW_HEIGHT)
+	end
 	window:Show()
 	-- With the gamepad UI on, focusing from addon code taints Blizzard's
 	-- navigation (Questie avoids it too): there focus comes from a click.
@@ -217,6 +236,67 @@ local function OpenTarget()
 	OpenUnit(data)
 end
 
+---------------------------------------------------------------------------
+-- Questie (optional): quest names and "can you take it?" requirements
+---------------------------------------------------------------------------
+local function QuestieModule(name)
+	if not (QuestieLoader and QuestieLoader.ImportModule) then return nil end
+	local ok, module = pcall(QuestieLoader.ImportModule, QuestieLoader, name)
+	if ok and type(module) == "table" then return module end
+end
+
+local READY = "|TInterface\\RaidFrame\\ReadyCheck-Ready:14|t "
+local NOT_READY = "|TInterface\\RaidFrame\\ReadyCheck-NotReady:14|t "
+
+local function IsQuestCompleted(questID)
+	if C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted then
+		local ok, done = pcall(C_QuestLog.IsQuestFlaggedCompleted, questID)
+		if ok and done ~= nil and not IsSecret(done) then return done == true end
+	end
+	local complete = Questie and Questie.db and Questie.db.char and Questie.db.char.complete
+	return complete and complete[questID] and true or false
+end
+
+local function QuestieQuestName(db, questID)
+	if not (db and db.QueryQuestSingle) then return nil end
+	local ok, name = pcall(db.QueryQuestSingle, questID, "name")
+	if ok and type(name) == "string" then return name end
+end
+
+-- Lines that tell whether the player can take the quest, from Questie's database.
+local function QuestRequirements(db, questID)
+	if not (db and db.GetQuest) then return nil end
+	local ok, quest = pcall(db.GetQuest, questID)
+	if not ok or type(quest) ~= "table" then return nil end
+
+	local lines = { "|cffffd100" .. L.REQ_TITLE .. "|r" }
+	if db.IsDoableVerbose then
+		local okText, text = pcall(db.IsDoableVerbose, questID, false, true, true)
+		if okText and type(text) == "string" and text ~= "" then lines[#lines + 1] = text end
+	end
+
+	local level = quest.requiredLevel
+	local mine = UnitLevel("player")
+	if type(level) == "number" and level > 1 and type(mine) == "number" and not IsSecret(mine) then
+		lines[#lines + 1] = (mine >= level and READY or NOT_READY) .. L.REQ_LEVEL:format(level, mine)
+	end
+
+	local function AddQuests(list, label)
+		if type(list) ~= "table" or not next(list) then return false end
+		lines[#lines + 1] = label
+		for _, id in ipairs(list) do
+			local preID = math.abs(id) -- negative entries only skip Questie's exclusive check
+			local name = QuestieQuestName(db, preID) or L.QUEST:format(preID)
+			lines[#lines + 1] = "   " .. (IsQuestCompleted(preID) and READY or NOT_READY) .. name
+		end
+		return true
+	end
+	local hasAll = AddQuests(quest.preQuestGroup, L.REQ_ALL)
+	local hasOne = AddQuests(quest.preQuestSingle, L.REQ_ONE)
+	if not hasAll and not hasOne then lines[#lines + 1] = READY .. L.REQ_NONE end
+	return lines
+end
+
 local function OpenQuest(questID)
 	if not questID or IsSecret(questID) or questID == 0 then
 		Print(L.NO_QUEST)
@@ -227,7 +307,15 @@ local function OpenQuest(questID)
 		local ok, t = pcall(C_QuestLog.GetTitleForQuestID, questID)
 		if ok and t ~= nil and not IsSecret(t) then title = t end
 	end
-	ShowURL(QuestURL(questID), title or L.QUEST:format(questID))
+	local db = QuestieModule("QuestieDB")
+	title = title or QuestieQuestName(db, questID)
+	local info
+	local onQuest = C_QuestLog and C_QuestLog.IsOnQuest and C_QuestLog.IsOnQuest(questID)
+	if onQuest ~= true then -- requirements only matter for quests not taken yet
+		local ok, lines = pcall(QuestRequirements, db, questID)
+		if ok then info = lines else Diag("requirements: " .. tostring(lines)) end
+	end
+	ShowURL(QuestURL(questID), title or L.QUEST:format(questID), info)
 end
 
 -- Key bindings (Bindings.xml)
@@ -402,6 +490,54 @@ local function HookQuestFrames()
 end
 
 ---------------------------------------------------------------------------
+-- Questie map icons (world map and minimap): Alt + click opens the quest.
+-- Questie uses Shift (hide quest) and Ctrl (TomTom) on its icons; Alt is free.
+---------------------------------------------------------------------------
+local function DecorateQuestieIcon(frame)
+	if type(frame) ~= "table" or frame.wowheadForeverLink or not frame.HookScript then return end
+	frame.wowheadForeverLink = true
+	frame:HookScript("OnClick", function(self, button)
+		if button ~= "LeftButton" or not IsAltKeyDown() then return end
+		local id = self.data and self.data.Id
+		if type(id) == "number" then Safe("questie icon", OpenQuest, id) end
+	end)
+	frame:HookScript("OnEnter", function(self)
+		if GameTooltip:IsShown() and GameTooltip:GetOwner() == self and self.data and type(self.data.Id) == "number" then
+			GameTooltip:AddLine(L.QUESTIE_ALT_CLICK, 0.22, 0.75, 0.93)
+			GameTooltip:Show()
+		end
+	end)
+end
+
+-- Questie names its icons QuestieFrame1, QuestieFrame2...: covers icons created before the hook.
+local scannedQuestieFrames = 0
+local function ScanQuestieIcons()
+	local i = scannedQuestieFrames + 1
+	while _G["QuestieFrame" .. i] do
+		DecorateQuestieIcon(_G["QuestieFrame" .. i])
+		scannedQuestieFrames = i
+		i = i + 1
+	end
+end
+
+local function HookQuestieMap()
+	if hooked.questie then return end
+	local pool = QuestieModule("QuestieFramePool")
+	if not (pool and type(pool.GetFrame) == "function") then return end
+	local original = pool.GetFrame
+	pool.GetFrame = function(...)
+		local frame = original(...)
+		Safe("questie icon", DecorateQuestieIcon, frame)
+		return frame
+	end
+	if WorldMapFrame and WorldMapFrame.HookScript then
+		WorldMapFrame:HookScript("OnShow", function() Safe("questie scan", ScanQuestieIcons) end)
+	end
+	ScanQuestieIcons()
+	hooked.questie = true
+end
+
+---------------------------------------------------------------------------
 -- Right-click on a portrait: entry in Blizzard's unit menu
 ---------------------------------------------------------------------------
 -- Tags from UnitPopupShared ("MENU_UNIT_" .. which). An NPC in the target
@@ -474,6 +610,7 @@ local function SlashCommand(text)
 			questDetails = hooked.questDetails or false,
 			questFrame = hooked.questFrame or false,
 			menus = hooked.menus or false,
+			questie = hooked.questie or false,
 			target = cachedTarget and cachedTarget.kind or "none",
 		}
 		for k, v in pairs(DB.status) do print("  " .. k .. " = " .. tostring(v)) end
@@ -508,6 +645,7 @@ events:SetScript("OnEvent", function(_, event, arg1)
 		Safe("target button", CreateTargetButton)
 		Safe("hooks", HookQuestFrames)
 		Safe("menus", HookUnitMenus)
+		Safe("questie", HookQuestieMap)
 		Print(L.READY)
 	elseif event == "PLAYER_TARGET_CHANGED" then
 		Safe("target changed", UpdateTargetButton)
