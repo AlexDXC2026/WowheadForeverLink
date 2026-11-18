@@ -16,7 +16,7 @@ jobs:
     env:
       TAG: ${{ github.ref_name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check that the tag matches the addon and app versions
         run: |
@@ -26,14 +26,14 @@ jobs:
           grep -q "<Version>$VERSION</Version>" companion/WowheadForeverLink.Companion.csproj || { echo "::error::.csproj version is not $VERSION"; exit 1; }
           grep -q "^## \[$VERSION\]" CHANGELOG.md || { echo "::error::CHANGELOG.md has no [$VERSION] section"; exit 1; }
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
       - name: Addon tests
         working-directory: tests
         run: npm ci && node run.js
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 8.0.x
       - name: Build companion app
