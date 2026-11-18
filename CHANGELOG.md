@@ -6,6 +6,9 @@ The addon and the companion app share one version number.
 
 ## [Unreleased]
 
+### Added
+- Companion app: **minimize** and **maximize / restore** buttons on the right of the floating window's toolbar, with Windows' own glyphs. Double-clicking the page title also maximizes. Maximizing fills the screen without taking focus from the game, and the state is remembered. A minimized window comes back with the shortcut, the tray icon or the next copied link.
+
 ### Fixed
 - Companion app: after running for a few minutes, the floating window opened behind the game again. Windows' foreground lock refuses `HWND_TOPMOST` from a background app once its start-up grace period (`ForegroundLockTimeout`) ends. The window is now created topmost from the start, and if Windows still refuses, the call is retried while sharing the game thread's input state (focus does not move).
 
