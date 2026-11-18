@@ -30,6 +30,12 @@ local L = {
 	RESET_DONE = "target button moved back to its place.",
 	QUEST_USAGE = "usage: /wh q <quest ID>",
 	DIAG_SAVED = "type /reload to save this to SavedVariables.",
+	QUESTIE_ALT_CLICK = "Alt + click: view on Wowhead",
+	REQ_TITLE = "Can you take it? (Questie)",
+	REQ_LEVEL = "Required level %d (you are %d)",
+	REQ_ALL = "Requires all of these quests:",
+	REQ_ONE = "Requires one of these quests:",
+	REQ_NONE = "No previous quests required.",
 	HELP = {
 		"commands:",
 		"  /wh  — target's loot",
@@ -38,6 +44,7 @@ local L = {
 		"  /wh last  — show the last link again",
 		"  /wh reset  — move the target button back to its place",
 		"  /wh diag  — addon status",
+		"  Alt + click on a Questie map icon — that quest on Wowhead",
 	},
 }
 
@@ -70,6 +77,12 @@ local esES = {
 	RESET_DONE = "botón del objetivo devuelto a su sitio.",
 	QUEST_USAGE = "uso: /wh m <número de misión>",
 	DIAG_SAVED = "haz /reload para que quede guardado en SavedVariables.",
+	QUESTIE_ALT_CLICK = "Alt + clic: ver en Wowhead",
+	REQ_TITLE = "¿Puedes cogerla? (Questie)",
+	REQ_LEVEL = "Nivel requerido %d (tienes %d)",
+	REQ_ALL = "Requiere todas estas misiones:",
+	REQ_ONE = "Requiere una de estas misiones:",
+	REQ_NONE = "No requiere misiones previas.",
 	HELP = {
 		"comandos:",
 		"  /wh  — botín del objetivo",
@@ -78,6 +91,7 @@ local esES = {
 		"  /wh ultima  — vuelve a mostrar el último enlace",
 		"  /wh reset  — devuelve el botón del objetivo a su sitio",
 		"  /wh diag  — estado del addon",
+		"  Alt + clic en un icono de Questie del mapa — esa misión en Wowhead",
 	},
 }
 

@@ -7,6 +7,7 @@
 ## Version: 1.2.1
 ## Category: Quests
 ## SavedVariables: WowheadForeverLinkDB
+## OptionalDeps: Questie
 ## IconTexture: Interface\AddOns\WowheadForeverLink\icon.png
 ## X-License: MIT
 ## X-Website: https://github.com/AlexDXC2026/WowheadForeverLink
