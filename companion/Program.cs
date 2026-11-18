@@ -136,9 +136,13 @@ sealed class OverlayForm : Form
     [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);
     [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr hWnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
+    [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr hWnd, int cmd);
+    [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr hWnd);
+    [DllImport("user32.dll")] static extern int GetWindowLong(IntPtr hWnd, int index);
+    const int SW_SHOWNOACTIVATE = 4, GWL_EXSTYLE = -20, WS_EX_TOPMOST = 0x8;
     static readonly IntPtr HWND_TOPMOST = new(-1);
     static readonly IntPtr HWND_NOTOPMOST = new(-2);
-    const uint SWP_NOSIZE = 0x1, SWP_NOMOVE = 0x2, SWP_NOACTIVATE = 0x10;
+    const uint SWP_NOSIZE = 0x1, SWP_NOMOVE = 0x2, SWP_NOACTIVATE = 0x10, SWP_SHOWWINDOW = 0x40;
 
     readonly Config cfg = Config.Load();
     readonly WebView2 web = new() { Dock = DockStyle.Fill, DefaultBackgroundColor = Color.FromArgb(24, 24, 24) };
@@ -158,8 +162,10 @@ sealed class OverlayForm : Form
     public OverlayForm()
     {
         Text = "Wowhead";
-        FormBorderStyle = FormBorderStyle.SizableToolWindow; // no taskbar button
-        ShowInTaskbar = false;
+        // A tool window has no taskbar button by itself. ShowInTaskbar = false must
+        // not be used: WinForms then gives the form a hidden owner window and
+        // Windows refuses to make it topmost, so it stayed behind the game.
+        FormBorderStyle = FormBorderStyle.SizableToolWindow;
         StartPosition = FormStartPosition.Manual;
         BackColor = Color.FromArgb(24, 24, 24);
         MinimumSize = new Size(420, 300);
@@ -175,6 +181,16 @@ sealed class OverlayForm : Form
         _ = Handle; // creates the (hidden) window that receives clipboard and hotkey messages
 
         ResizeEnd += (_, _) => SaveBounds();
+        VisibleChanged += (_, _) =>
+        {
+            if (!cfg.DiagnosticLog) return;
+            var caller = new StackTrace().GetFrames()
+                .Select(f => f.GetMethod())
+                .Where(m => m?.DeclaringType?.Namespace?.StartsWith("WowheadForeverLink") == true)
+                .Select(m => m!.DeclaringType!.Name + "." + m.Name)
+                .Skip(1).Take(4);
+            Log($"visible = {Visible} (from {string.Join(" < ", caller)})");
+        };
         FormClosing += (_, e) =>
         {
             if (!exiting && e.CloseReason == CloseReason.UserClosing)
@@ -464,14 +480,19 @@ sealed class OverlayForm : Form
 
     void ShowOverlay()
     {
-        if (!Visible) { Show(); Log("window shown at " + Bounds); }
         if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal;
+        if (!Visible) Visible = true;
+        // Show and raise through Win32 as well: WinForms alone left the window
+        // hidden or behind the game in some cases.
+        ShowWindow(Handle, SW_SHOWNOACTIVATE);
         ApplyTopMost();
+        Log($"window shown at {Bounds} · visible = {IsWindowVisible(Handle)} · topmost = {(GetWindowLong(Handle, GWL_EXSTYLE) & WS_EX_TOPMOST) != 0}");
         webInit ??= InitWebView();
     }
 
     void HideOverlay()
     {
+        Log("hide requested");
         SaveBounds();
         Hide();
     }
@@ -488,7 +509,8 @@ sealed class OverlayForm : Form
     {
         TopMost = cfg.AlwaysOnTop;
         // Re-assert above the (borderless) game window without stealing focus.
-        SetWindowPos(Handle, cfg.AlwaysOnTop ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        uint show = Visible ? SWP_SHOWWINDOW : 0;
+        SetWindowPos(Handle, cfg.AlwaysOnTop ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | show);
     }
 
     async Task InitWebView()

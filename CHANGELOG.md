@@ -6,6 +6,12 @@ The addon and the companion app share one version number.
 
 ## [Unreleased]
 
+### Fixed
+- Companion app: the floating window stayed hidden behind the game. `ShowInTaskbar = false` gave it a hidden owner window, and Windows then refused to keep it always on top. It is now shown and raised through Win32 as well.
+
+### Added
+- Companion app: the diagnostic log records the real visible and topmost state of the window, and what hid it.
+
 ## [1.2.0] - 2026-11-18
 
 First public release.
