@@ -68,6 +68,9 @@ static class Strings
     public static string Reload => T("Reload", "Recargar");
     public static string OpenInChrome => T("Open this page in Chrome", "Abrir esta página en Chrome");
     public static string Hide => T("Hide", "Ocultar");
+    public static string Minimize => T("Minimize", "Minimizar");
+    public static string Maximize => T("Maximize", "Maximizar");
+    public static string Restore => T("Restore down", "Restaurar");
     public static string Mode => T("Mode", "Modo");
     public static string ModeFloating => T("floating window", "ventana flotante");
     public static string ModePaused => T("paused", "pausado");
@@ -93,6 +96,7 @@ sealed class Config
     public int Y { get; set; } = -1;
     public int Width { get; set; } = 900;
     public int Height { get; set; } = 720;
+    public bool Maximized { get; set; } = false;
 
     static readonly string FilePath = Path.Combine(AppInfo.DataFolder, "config.json");
 
@@ -141,7 +145,8 @@ sealed class OverlayForm : Form
     [DllImport("user32.dll")] static extern int GetWindowLong(IntPtr hWnd, int index);
     [DllImport("user32.dll")] static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool attach);
     [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
-    const int SW_SHOWNOACTIVATE = 4, GWL_EXSTYLE = -20, WS_EX_TOPMOST = 0x8;
+    [DllImport("user32.dll")] static extern bool IsIconic(IntPtr hWnd);
+    const int SW_SHOWNOACTIVATE = 4, SW_MINIMIZE = 6, GWL_EXSTYLE = -20, WS_EX_TOPMOST = 0x8;
     static readonly IntPtr HWND_TOPMOST = new(-1);
     static readonly IntPtr HWND_NOTOPMOST = new(-2);
     const uint SWP_NOSIZE = 0x1, SWP_NOMOVE = 0x2, SWP_NOACTIVATE = 0x10, SWP_SHOWWINDOW = 0x40;
@@ -149,6 +154,10 @@ sealed class OverlayForm : Form
     readonly Config cfg = Config.Load();
     readonly WebView2 web = new() { Dock = DockStyle.Fill, DefaultBackgroundColor = Color.FromArgb(24, 24, 24) };
     readonly Label pageTitle = new();
+    readonly ToolTip maximizeTip = new();
+    Button? maximizeButton;
+    bool maximized;
+    Rectangle normalBounds;
     readonly NotifyIcon tray = new();
     readonly ContextMenuStrip menu = new();
     ToolStripMenuItem? itemFloating, itemChrome, itemPaused, itemOnTop, itemOnlyWow, itemStartup, itemLog;
@@ -182,6 +191,7 @@ sealed class OverlayForm : Form
         Controls.Add(web);
         Controls.Add(CreateToolbar());
         web.BringToFront();
+        RestoreMaximizedState();
 
         CreateTray();
         _ = Handle; // creates the (hidden) window that receives clipboard and hotkey messages
@@ -262,11 +272,71 @@ sealed class OverlayForm : Form
         pageTitle.AutoEllipsis = true;
         pageTitle.Padding = new Padding(8, 0, 4, 0);
         pageTitle.Text = "Wowhead";
+        pageTitle.DoubleClick += (_, _) => ToggleMaximize();
+
+        // Standard caption buttons on the right: minimize and maximize/restore.
+        var windowButtons = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Right, AutoSize = true, WrapContents = false,
+            Padding = new Padding(0, 2, 2, 0), BackColor = bar.BackColor,
+        };
+        var minimize = ToolbarButton(Glyph(GLYPH_MINIMIZE, "—"), Strings.Minimize, MinimizeOverlay, 40);
+        maximizeButton = ToolbarButton(Glyph(GLYPH_MAXIMIZE, "□"), "", ToggleMaximize, 40); // tooltip set below
+        if (captionFont != null) { minimize.Font = captionFont; maximizeButton.Font = captionFont; }
+        UpdateMaximizeButton();
+        windowButtons.Controls.Add(minimize);
+        windowButtons.Controls.Add(maximizeButton);
 
         bar.Controls.Add(pageTitle);
         bar.Controls.Add(buttons);
+        bar.Controls.Add(windowButtons);
         pageTitle.BringToFront();
         return bar;
+    }
+
+    // Windows' own caption glyphs (Segoe MDL2 Assets, Windows 10+), with plain-text fallbacks.
+    const string GLYPH_MINIMIZE = "", GLYPH_MAXIMIZE = "", GLYPH_RESTORE = "";
+    static readonly Font? captionFont = FontFamily.Families.Any(f => f.Name == "Segoe MDL2 Assets")
+        ? new Font("Segoe MDL2 Assets", 8f) : null;
+    static string Glyph(string glyph, string fallback) => captionFont != null ? glyph : fallback;
+
+    void UpdateMaximizeButton()
+    {
+        if (maximizeButton == null) return;
+        maximizeButton.Text = maximized ? Glyph(GLYPH_RESTORE, "❐") : Glyph(GLYPH_MAXIMIZE, "□");
+        maximizeTip.SetToolTip(maximizeButton, maximized ? Strings.Restore : Strings.Maximize);
+    }
+
+    void MinimizeOverlay()
+    {
+        Log("minimize requested");
+        SaveBounds();
+        ShowWindow(Handle, SW_MINIMIZE); // focus goes back to the game
+    }
+
+    void ToggleMaximize()
+    {
+        SetMaximized(!maximized);
+        cfg.Maximized = maximized;
+        cfg.Save();
+    }
+
+    // Maximize by filling the screen's working area ourselves: the native maximize
+    // (SW_MAXIMIZE) activates the window and would steal focus from the game.
+    void SetMaximized(bool on)
+    {
+        if (on == maximized) return;
+        if (on)
+        {
+            normalBounds = Bounds;
+            Bounds = Screen.FromRectangle(Bounds).WorkingArea;
+        }
+        else if (!normalBounds.IsEmpty)
+        {
+            Bounds = normalBounds;
+        }
+        maximized = on;
+        UpdateMaximizeButton();
     }
 
     static Button ToolbarButton(string text, string tooltip, Action action, int width = 32)
@@ -486,10 +556,10 @@ sealed class OverlayForm : Form
 
     void ShowOverlay()
     {
-        if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal;
         if (!Visible) Visible = true;
         // Show and raise through Win32 as well: WinForms alone left the window
-        // hidden or behind the game in some cases.
+        // hidden or behind the game in some cases. SW_SHOWNOACTIVATE also restores
+        // a minimized window without taking focus from the game.
         ShowWindow(Handle, SW_SHOWNOACTIVATE);
         ApplyTopMost();
         Log($"window shown at {Bounds} · visible = {IsWindowVisible(Handle)} · topmost = {IsTopMost()}");
@@ -506,7 +576,7 @@ sealed class OverlayForm : Form
     void ToggleOverlay()
     {
         Log("hotkey pressed (visible = " + Visible + ")");
-        if (Visible) { HideOverlay(); return; }
+        if (Visible && !IsIconic(Handle)) { HideOverlay(); return; } // a minimized window is restored instead
         ShowOverlay();
         if (!navigated) Navigate(Strings.WowheadHome);
     }
@@ -570,9 +640,15 @@ sealed class OverlayForm : Form
         Bounds = r;
     }
 
+    void RestoreMaximizedState()
+    {
+        if (cfg.Maximized) SetMaximized(true);
+    }
+
     void SaveBounds()
     {
-        if (!Visible || WindowState != FormWindowState.Normal) return;
+        // While maximized, the saved bounds stay the normal ones.
+        if (!Visible || maximized || IsIconic(Handle) || WindowState != FormWindowState.Normal) return;
         cfg.X = Left; cfg.Y = Top; cfg.Width = Width; cfg.Height = Height;
         cfg.Save();
     }
