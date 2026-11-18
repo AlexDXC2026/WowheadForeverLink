@@ -61,7 +61,7 @@ Settings are stored in `%LOCALAPPDATA%\WowheadForeverLink\config.json` (the shor
 
 ## Building from source
 
-Requirements: .NET 8 SDK, Node.js 20+, Python 3 with Pillow (only to regenerate the icon).
+Requirements: .NET 8 SDK, Node.js 24+, Python 3 with Pillow (only to regenerate the icon).
 
 ```bash
 # Addon tests (Lua 5.1 syntax + simulated WoW API, in 4 client locales)
