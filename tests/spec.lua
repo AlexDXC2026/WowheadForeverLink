@@ -18,9 +18,10 @@ function RunTimers() local t = TIMERS; TIMERS = {}; for _, f in ipairs(t) do f()
 function GetBuildInfo() return "1.60.1", "70959", "", 16001 end
 function GetLocale() return LOCALE end
 C_AddOns = { GetAddOnMetadata = function(_, field) return field == "Version" and "1.2.0" or nil end }
-function hooksecurefunc(name, f)
-	local orig = _G[name]
-	_G[name] = function(...) local r = { orig(...) }; f(...); return unpack(r) end
+function hooksecurefunc(tbl, name, f)
+	if type(tbl) == "string" then tbl, name, f = _G, tbl, name end
+	local orig = tbl[name]
+	tbl[name] = function(...) local r = { orig(...) }; f(...); return unpack(r) end
 end
 
 -- Secret values: comparing, concatenating or indexing them errors, like in game.
@@ -137,8 +138,19 @@ function questiePool:GetFrame()
 	return CreateFrame("Button", "QuestieFrame" .. questieFrames)
 end
 CreateFrame("Button", "QuestieFrame1") -- created before the addon hooks the pool
+-- Questie's map tooltip: ShowOnTooltip builds through a fresh Tooltip._Rebuild,
+-- which Questie calls again when a modifier key changes.
+local questieTooltip = {}
+function questieTooltip.ShowOnTooltip(icon, tooltip)
+	tooltip._owner = icon
+	tooltip._Rebuild = function(tt) tt.lines = { "Questie: " .. tostring(icon.data and icon.data.Id) } end
+	tooltip:_Rebuild()
+	tooltip:Show()
+end
 QuestieLoader = {
-	ImportModule = function(_, name) return ({ QuestieDB = questieDB, QuestieFramePool = questiePool })[name] end,
+	ImportModule = function(_, name)
+		return ({ QuestieDB = questieDB, QuestieFramePool = questiePool, MapIconTooltip = questieTooltip })[name]
+	end,
 }
 
 -- Load the addon files in .toc order with a shared namespace
@@ -288,12 +300,32 @@ check(tostring(info().text):find(ns.L.REQ_NONE, 1, true), "no pre-quests line")
 SlashCmdList.WOWHEADFOREVERLINK("q 783")
 check(not info():IsShown(), "requirements shown for a quest in the log")
 
--- Tooltip hint on Questie icons
-GameTooltip:SetOwner(icon); GameTooltip:Show()
-icon.scripts.OnEnter(icon)
-check(GameTooltip.lines[1] == ns.L.QUESTIE_ALT_CLICK, "no Alt+click hint in the tooltip")
+-- Hovering a Questie "!" icon: requirements + Alt hint, kept after Questie redraws
+local function tooltipText() return table.concat(GameTooltip.lines or {}, "\n") end
+icon.data = { Id = 500, Type = "available" }
+questieTooltip.ShowOnTooltip(icon, GameTooltip)
+local tt = tooltipText()
+check(tt:find("Questie: 500", 1, true), "Questie's own tooltip lines lost")
+check(tt:find(ns.L.REQ_TITLE, 1, true), "no requirements in the tooltip")
+check(tt:find("ReadyCheck-NotReady:14|t Second Step", 1, true), "missing pre-quest not in the tooltip")
+check(GameTooltip.lines[#GameTooltip.lines] == ns.L.QUESTIE_ALT_CLICK, "no Alt+click hint in the tooltip")
+GameTooltip:_Rebuild() -- modifier key pressed
+tt = tooltipText()
+check(tt:find(ns.L.REQ_TITLE, 1, true) and tt:find(ns.L.QUESTIE_ALT_CLICK, 1, true), "lines lost after Questie's rebuild")
+local count = 0
+for _ in tt:gmatch(ns.L.QUESTIE_ALT_CLICK:gsub("%p", "%%%0")) do count = count + 1 end
+check(count == 1, "hint duplicated after rebuild: " .. count)
+-- A second show wraps the new _Rebuild once (no stacking)
+questieTooltip.ShowOnTooltip(icon, GameTooltip); GameTooltip:_Rebuild()
+count = 0
+for _ in tooltipText():gmatch(ns.L.QUESTIE_ALT_CLICK:gsub("%p", "%%%0")) do count = count + 1 end
+check(count == 1, "hint stacked after a second show: " .. count)
+-- Objective icons (not "!"): only the hint, no requirements
+icon.data = { Id = 500, Type = "monster" }
+questieTooltip.ShowOnTooltip(icon, GameTooltip)
+check(not tooltipText():find(ns.L.REQ_TITLE, 1, true), "requirements on an objective icon")
 SlashCmdList.WOWHEADFOREVERLINK("diag")
-check(WowheadForeverLinkDB.status.questie, "diag questie")
+check(WowheadForeverLinkDB.status.questie and WowheadForeverLinkDB.status.questieTooltip, "diag questie")
 
 -- Any red error line in chat means a code path failed
 for _, l in ipairs(LOG) do

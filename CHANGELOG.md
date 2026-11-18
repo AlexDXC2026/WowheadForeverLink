@@ -10,6 +10,7 @@ The addon and the companion app share one version number.
 - Addon: **Alt + click on a Questie map icon** (world map or minimap) opens that quest on Wowhead, also for quests you have not taken yet. The icon tooltip shows the hint.
 - Addon: for quests not in your log, the link window says whether you can take it, using Questie's database: Questie's availability verdict, the required level and every previous quest, each marked done or missing.
 - Addon: quest titles come from Questie when the quest is not in your log.
+- Addon: **hovering a Questie "!" icon** (map or minimap) adds the same "can you take it?" lines to its tooltip: Questie's verdict (already completed, in your log, missing pre-quest...), level and previous quests marked done or missing. The lines stay when Questie redraws the tooltip on Shift.
 
 ## [1.2.1] - 2026-11-18
 
