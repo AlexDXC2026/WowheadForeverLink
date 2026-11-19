@@ -28,6 +28,9 @@ The project has two parts:
 - **Button next to the target frame**: opens the NPC page on the **Loot** tab (trash, good and quest drops with drop rates). Shift + drag to move it.
 - **Quest log**: an icon on every quest and a **Wowhead** button in the quest details.
 - **Quest giver window**: an icon next to the close button, to check a quest before accepting it.
+- **Questie map icons**: **Alt + click** any quest icon on the world map or minimap to open it on Wowhead. For quests you have not taken, the window also says whether you can take it: level, previous quests (done or missing) and Questie's verdict. **Hovering** a "!" icon shows the same lines in its tooltip.
+- **Items**: **Alt + click** an item (bags, chat link, loot window) to open its quest on Wowhead: a quest you have not taken yet first, then one in your log. Items with no such quest open their own page. The tooltip of a quest item shows the hint. Finding the quest needs Questie, and works a few seconds after logging in.
+- **Rares (RareScanner)**: the "rare found" alert of RareScanner gets a Wowhead icon in its corner: NPC page on the loot tab, or the container's contents.
 - **Key bindings** (Options → Keybindings → AddOns): Wowhead for your target or for the unit under the mouse.
 - Links always point to the **Forever** section of Wowhead, in your **client language** (English, Spanish, German, French, Italian, Portuguese, Russian, Korean and Chinese).
 
@@ -91,6 +94,9 @@ Abre **Wowhead (WoW Forever)** con el botín de cualquier PNJ o con cualquier mi
 - **Botón junto al marco del objetivo**: abre la ficha del PNJ en la pestaña **Botín** (normal, bueno y de misión, con porcentajes). Mayús + arrastrar para moverlo.
 - **Registro de misiones**: icono en cada misión y botón **Wowhead** en el detalle.
 - **Ventana del PNJ que da misiones**: icono junto a la X para revisar la misión antes de aceptarla.
+- **Iconos de Questie en el mapa**: **Alt + clic** en cualquier icono de misión del mapa o del minimapa la abre en Wowhead. Si aún no la tienes, la ventana te dice si puedes cogerla: nivel, misiones previas (hechas o pendientes) y el veredicto de Questie. **Al pasar el ratón** por un "!" lo ves en su tooltip.
+- **Objetos**: **Alt + clic** en un objeto (bolsas, enlace del chat, ventana de botín) abre su misión en Wowhead: primero una que aún no has cogido, si no una de tu registro. Si no tiene, abre la ficha del objeto. El tooltip de un objeto de misión lo indica. Encontrar la misión necesita Questie y funciona unos segundos después de entrar.
+- **Raros (RareScanner)**: el aviso de "raro encontrado" de RareScanner lleva un icono de Wowhead en la esquina: ficha del PNJ en la pestaña de botín, o el contenido del cofre.
 - **Atajos de teclado** (Opciones → Atajos → Addons).
 - Comandos: `/wh`, `/wh m <id>`, `/wh <texto>`, `/wh ultima`, `/wh reset`, `/wh diag`.
 - Los enlaces van siempre a la sección **Forever** de Wowhead, en el **idioma de tu cliente**.

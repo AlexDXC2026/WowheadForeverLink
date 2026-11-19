@@ -98,6 +98,14 @@ local function CreateWindow()
 	f.hint:SetPoint("TOP", e, "BOTTOM", -4, -10)
 	f.hint:SetText(L.COPY_HINT)
 
+	-- Optional extra lines (quest requirements from Questie).
+	f.info = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+	f.info:SetPoint("TOPLEFT", 24, -96)
+	f.info:SetWidth(352)
+	f.info:SetJustifyH("LEFT")
+	f.info:SetJustifyV("TOP")
+	f.info:SetSpacing(2)
+
 	e:SetScript("OnEscapePressed", function() f:Hide() end)
 	e:SetScript("OnEnterPressed", function() f:Hide() end)
 	-- Typing restores the URL: the box only exists to copy from.
@@ -131,12 +139,23 @@ local function CreateWindow()
 	return f
 end
 
-local function ShowURL(url, title)
+local WINDOW_HEIGHT = 118
+
+local function ShowURL(url, title, infoLines)
 	window = window or CreateWindow()
 	window.generation = (window.generation or 0) + 1
 	window.url = url
 	window.title:SetText(title or "Wowhead")
 	window.edit:SetText(url)
+	if infoLines and #infoLines > 0 then
+		window.info:SetText(table.concat(infoLines, "\n"))
+		window.info:Show()
+		window:SetHeight(WINDOW_HEIGHT + 8 + (window.info:GetStringHeight() or 0))
+	else
+		window.info:SetText("")
+		window.info:Hide()
+		window:SetHeight(WINDOW_HEIGHT)
+	end
 	window:Show()
 	-- With the gamepad UI on, focusing from addon code taints Blizzard's
 	-- navigation (Questie avoids it too): there focus comes from a click.
@@ -217,7 +236,94 @@ local function OpenTarget()
 	OpenUnit(data)
 end
 
-local function OpenQuest(questID)
+---------------------------------------------------------------------------
+-- Questie (optional): quest names and "can you take it?" requirements
+---------------------------------------------------------------------------
+local function QuestieModule(name)
+	if not (QuestieLoader and QuestieLoader.ImportModule) then return nil end
+	local ok, module = pcall(QuestieLoader.ImportModule, QuestieLoader, name)
+	if ok and type(module) == "table" then return module end
+end
+
+local READY = "|TInterface\\RaidFrame\\ReadyCheck-Ready:14|t "
+local NOT_READY = "|TInterface\\RaidFrame\\ReadyCheck-NotReady:14|t "
+
+local function IsQuestCompleted(questID)
+	if C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted then
+		local ok, done = pcall(C_QuestLog.IsQuestFlaggedCompleted, questID)
+		if ok and done ~= nil and not IsSecret(done) then return done == true end
+	end
+	local complete = Questie and Questie.db and Questie.db.char and Questie.db.char.complete
+	return complete and complete[questID] and true or false
+end
+
+local function QuestieQuestName(db, questID)
+	if not (db and db.QueryQuestSingle) then return nil end
+	local ok, name = pcall(db.QueryQuestSingle, questID, "name")
+	if ok and type(name) == "string" then return name end
+end
+
+-- Previous quests that Questie's database leaves out, checked in game.
+-- Each listed quest is required on top of Questie's own pre-quests.
+local MISSING_PREQUESTS = {
+	-- Battle at the Mannoroc Coven (paladin): Katherine the Pure only offers it after
+	-- the Althalaxx Orb chain (the SoD Divine Storm quests), which ends in Return to Delgren.
+	[96438] = { 78093 },
+}
+
+-- Questie's pre-quests that must all be done, plus the missing ones above.
+-- pending: one of the missing ones is not done, so Questie's verdict is wrong.
+local function RequiredGroup(quest, questID)
+	local extra = MISSING_PREQUESTS[questID]
+	if not extra then return quest.preQuestGroup, false end
+	local group, pending = {}, false
+	if type(quest.preQuestGroup) == "table" then
+		for _, id in ipairs(quest.preQuestGroup) do group[#group + 1] = id end
+	end
+	for _, id in ipairs(extra) do
+		group[#group + 1] = id
+		if not IsQuestCompleted(id) then pending = true end
+	end
+	return group, pending
+end
+
+-- Lines that tell whether the player can take the quest, from Questie's database.
+local function QuestRequirements(db, questID)
+	if not (db and db.GetQuest) then return nil end
+	local ok, quest = pcall(db.GetQuest, questID)
+	if not ok or type(quest) ~= "table" then return nil end
+
+	local group, missingPending = RequiredGroup(quest, questID)
+	local lines = { "|cffffd100" .. L.REQ_TITLE .. "|r" }
+	if db.IsDoableVerbose and not missingPending then
+		local okText, text = pcall(db.IsDoableVerbose, questID, false, true, true)
+		if okText and type(text) == "string" and text ~= "" then lines[#lines + 1] = text end
+	end
+
+	local level = quest.requiredLevel
+	local mine = UnitLevel("player")
+	if type(level) == "number" and level > 1 and type(mine) == "number" and not IsSecret(mine) then
+		lines[#lines + 1] = (mine >= level and READY or NOT_READY) .. L.REQ_LEVEL:format(level, mine)
+	end
+
+	local function AddQuests(list, label)
+		if type(list) ~= "table" or not next(list) then return false end
+		lines[#lines + 1] = label
+		for _, id in ipairs(list) do
+			local preID = math.abs(id) -- negative entries only skip Questie's exclusive check
+			local name = QuestieQuestName(db, preID) or L.QUEST:format(preID)
+			lines[#lines + 1] = "   " .. (IsQuestCompleted(preID) and READY or NOT_READY) .. name
+		end
+		return true
+	end
+	local hasAll = AddQuests(group, L.REQ_ALL)
+	local hasOne = AddQuests(quest.preQuestSingle, L.REQ_ONE)
+	if not hasAll and not hasOne then lines[#lines + 1] = READY .. L.REQ_NONE end
+	return lines
+end
+
+-- withoutRequirements: just the link, as for quest items.
+local function OpenQuest(questID, withoutRequirements)
 	if not questID or IsSecret(questID) or questID == 0 then
 		Print(L.NO_QUEST)
 		return
@@ -227,7 +333,15 @@ local function OpenQuest(questID)
 		local ok, t = pcall(C_QuestLog.GetTitleForQuestID, questID)
 		if ok and t ~= nil and not IsSecret(t) then title = t end
 	end
-	ShowURL(QuestURL(questID), title or L.QUEST:format(questID))
+	local db = QuestieModule("QuestieDB")
+	title = title or QuestieQuestName(db, questID)
+	local info
+	local onQuest = C_QuestLog and C_QuestLog.IsOnQuest and C_QuestLog.IsOnQuest(questID)
+	if not withoutRequirements and onQuest ~= true then -- requirements only matter for quests not taken yet
+		local ok, lines = pcall(QuestRequirements, db, questID)
+		if ok then info = lines else Diag("requirements: " .. tostring(lines)) end
+	end
+	ShowURL(QuestURL(questID), title or L.QUEST:format(questID), info)
 end
 
 -- Key bindings (Bindings.xml)
@@ -402,6 +516,305 @@ local function HookQuestFrames()
 end
 
 ---------------------------------------------------------------------------
+-- Questie map icons (world map and minimap): Alt + click opens the quest.
+-- Questie uses Shift (hide quest) and Ctrl (TomTom) on its icons; Alt is free.
+---------------------------------------------------------------------------
+local function DecorateQuestieIcon(frame)
+	if type(frame) ~= "table" or frame.wowheadForeverLink or not frame.HookScript then return end
+	frame.wowheadForeverLink = true
+	frame:HookScript("OnClick", function(self, button)
+		if button ~= "LeftButton" or not IsAltKeyDown() then return end
+		local id = self.data and self.data.Id
+		if type(id) == "number" then Safe("questie icon", OpenQuest, id) end
+	end)
+end
+
+-- Extra tooltip lines for a hovered Questie icon: for an available quest ("!"),
+-- whether the player can take it; for any quest icon, the Alt+click hint.
+local function AppendQuestieTooltip(tooltip, icon)
+	local data = icon and icon.data
+	local id = data and data.Id
+	if type(id) ~= "number" then return end
+	if data.Type == "available" then
+		local ok, lines = pcall(QuestRequirements, QuestieModule("QuestieDB"), id)
+		if ok and lines then
+			tooltip:AddLine(" ")
+			for _, line in ipairs(lines) do tooltip:AddLine(line, 1, 1, 1) end
+		elseif not ok then
+			Diag("tooltip requirements: " .. tostring(lines))
+		end
+	end
+	tooltip:AddLine(L.QUESTIE_ALT_CLICK, 0.22, 0.75, 0.93)
+	tooltip:Show()
+end
+
+-- Questie draws map icon tooltips in MapIconTooltip.ShowOnTooltip and redraws
+-- them with Tooltip._Rebuild when a modifier key changes: add our lines both times.
+local function HookQuestieTooltip()
+	if hooked.questieTooltip then return end
+	local module = QuestieModule("MapIconTooltip")
+	if not (module and type(module.ShowOnTooltip) == "function") then return end
+	hooksecurefunc(module, "ShowOnTooltip", function(icon, tooltip)
+		Safe("questie tooltip", function()
+			if type(tooltip) ~= "table" or tooltip._owner ~= icon then return end -- Questie skipped this show
+			-- Questie assigns a new _Rebuild on every show: wrap each new one once.
+			local rebuild = tooltip._Rebuild
+			if type(rebuild) == "function" and rebuild ~= tooltip.wowheadForeverLinkRebuild then
+				local wrapper = function(tt, ...)
+					rebuild(tt, ...)
+					Safe("questie tooltip", AppendQuestieTooltip, tt, tt._owner)
+				end
+				tooltip._Rebuild = wrapper
+				tooltip.wowheadForeverLinkRebuild = wrapper
+			end
+			AppendQuestieTooltip(tooltip, icon)
+		end)
+	end)
+	hooked.questieTooltip = true
+end
+
+-- Questie names its icons QuestieFrame1, QuestieFrame2...: covers icons created before the hook.
+local scannedQuestieFrames = 0
+local function ScanQuestieIcons()
+	local i = scannedQuestieFrames + 1
+	while _G["QuestieFrame" .. i] do
+		DecorateQuestieIcon(_G["QuestieFrame" .. i])
+		scannedQuestieFrames = i
+		i = i + 1
+	end
+end
+
+local function HookQuestieMap()
+	if hooked.questie then return end
+	local pool = QuestieModule("QuestieFramePool")
+	if not (pool and type(pool.GetFrame) == "function") then return end
+	local original = pool.GetFrame
+	pool.GetFrame = function(...)
+		local frame = original(...)
+		Safe("questie icon", DecorateQuestieIcon, frame)
+		return frame
+	end
+	if WorldMapFrame and WorldMapFrame.HookScript then
+		WorldMapFrame:HookScript("OnShow", function() Safe("questie scan", ScanQuestieIcons) end)
+	end
+	ScanQuestieIcons()
+	hooked.questie = true
+end
+
+---------------------------------------------------------------------------
+-- Quest items (bags, chat links, loot): Alt + click an item that a quest not
+-- taken yet asks for, or that starts one, opens that quest with its requirements.
+-- The data comes from LibQuestieDB, installed with Questie. It lists the items of
+-- each quest, so the item -> quests index is built once per session, a few
+-- quests per frame.
+---------------------------------------------------------------------------
+local QUESTIEDB_CONTRACT = 2
+local OBJECTIVE_ITEMS = 3 -- position of the item group in a quest's objectives
+local QUESTS_PER_TICK = 40
+local INDEX_DELAY = 10 -- seconds after login: Questie loads its own data first
+
+local itemQuests -- [itemID] = { questID, ... }; nil until built
+local indexState = "none" -- none, building, ready
+
+local function QuestieLib()
+	local lib = LibQuestieDB
+	if type(lib) ~= "table" or type(lib.Quest) ~= "table" or type(lib.Item) ~= "table" then return nil end
+	if type(lib.RequireContract) == "function" then
+		local ok, fits = pcall(lib.RequireContract, QUESTIEDB_CONTRACT)
+		if not (ok and fits) then return nil end
+	end
+	return lib
+end
+
+local function AddItemQuest(index, itemID, questID)
+	if type(itemID) ~= "number" or itemID <= 0 then return end
+	local list = index[itemID]
+	if not list then
+		index[itemID] = { questID }
+		return
+	end
+	for _, known in ipairs(list) do
+		if known == questID then return end
+	end
+	list[#list + 1] = questID
+end
+
+local function IndexQuest(lib, index, questID)
+	local objectives = lib.Quest.Get(questID, "objectives")
+	local items = type(objectives) == "table" and objectives[OBJECTIVE_ITEMS]
+	if type(items) == "table" then
+		for _, entry in ipairs(items) do
+			-- Entries are { itemID, ... } tuples, or a bare ID.
+			AddItemQuest(index, type(entry) == "table" and entry[1] or entry, questID)
+		end
+	end
+	-- Needed to start the quest without being an objective.
+	local needed = lib.Quest.Get(questID, "requiredSourceItems")
+	if type(needed) == "table" then
+		for _, itemID in ipairs(needed) do AddItemQuest(index, itemID, questID) end
+	end
+end
+
+local function BuildItemIndex()
+	if indexState ~= "none" then return end
+	local lib = QuestieLib()
+	if not (lib and type(lib.Quest.GetAllIds) == "function" and C_Timer and C_Timer.NewTicker) then return end
+	local ok, ids = pcall(lib.Quest.GetAllIds)
+	if not ok or type(ids) ~= "table" then
+		Diag("item index: " .. tostring(ids))
+		return
+	end
+	indexState = "building"
+	local index, position, failed = {}, 1, 0
+	local ticker
+	ticker = C_Timer.NewTicker(0.05, function()
+		for _ = 1, QUESTS_PER_TICK do
+			local questID = ids[position]
+			if questID == nil then
+				ticker:Cancel()
+				itemQuests = index
+				indexState = "ready"
+				if failed > 0 then Diag("item index: " .. failed .. " quests unreadable") end
+				return
+			end
+			position = position + 1
+			if not pcall(IndexQuest, lib, index, questID) then failed = failed + 1 end
+		end
+	end)
+end
+
+local function ItemIDFromLink(link)
+	if type(link) ~= "string" or IsSecret(link) then return nil end
+	return tonumber(link:match("item:(%d+)"))
+end
+
+-- The quest an item is for: one not taken yet first, then one in the log.
+-- Done quests and quests of other races or classes do not count.
+local function ItemQuest(itemID)
+	local lib = QuestieLib()
+	if not lib or type(itemID) ~= "number" then return nil end
+	local player = QuestieModule("QuestiePlayer")
+	local inLog
+	local function Pending(questID)
+		if type(questID) ~= "number" or IsQuestCompleted(questID) then return false end
+		if player then
+			if player.HasRequiredRace and not player.HasRequiredRace(lib.Quest.Get(questID, "requiredRaces")) then return false end
+			if player.HasRequiredClass and not player.HasRequiredClass(lib.Quest.Get(questID, "requiredClasses")) then return false end
+		end
+		local onQuest = C_QuestLog and C_QuestLog.IsOnQuest and C_QuestLog.IsOnQuest(questID)
+		if not IsSecret(onQuest) and onQuest == true then
+			inLog = inLog or questID
+			return false
+		end
+		return true
+	end
+	local candidates = {}
+	local ok, starts = pcall(lib.Item.Get, itemID, "startQuest")
+	if ok then candidates[1] = starts end
+	for _, questID in ipairs(itemQuests and itemQuests[itemID] or {}) do candidates[#candidates + 1] = questID end
+	for _, questID in ipairs(candidates) do
+		local okP, pending = pcall(Pending, questID)
+		if okP and pending then return questID end
+	end
+	return inLog
+end
+
+-- Alt + click on an item: the page of its quest, or of the item itself.
+local function OpenItem(link)
+	local itemID = ItemIDFromLink(link)
+	if not itemID then return end
+	local questID = ItemQuest(itemID)
+	if questID then
+		OpenQuest(questID, true)
+		return
+	end
+	local name = link:match("|h%[(.-)%]|h")
+	ShowURL(BASE .. "item=" .. itemID, name or L.ITEM:format(itemID))
+end
+
+local function AppendItemTooltip(tooltip, itemID)
+	if tooltip ~= GameTooltip and tooltip ~= ItemRefTooltip then return end -- not the comparison ones
+	if type(itemID) ~= "number" or IsSecret(itemID) then return end
+	if not ItemQuest(itemID) then return end
+	tooltip:AddLine(L.ITEM_ALT_CLICK, 0.22, 0.75, 0.93)
+	tooltip:Show()
+end
+
+local function HookQuestItems()
+	if not hooked.itemClick and type(HandleModifiedItemClick) == "function" then
+		-- Bags, chat links, loot and merchant buttons all go through this on a modified click.
+		hooksecurefunc("HandleModifiedItemClick", function(link)
+			if not IsAltKeyDown() or IsShiftKeyDown() or IsControlKeyDown() then return end
+			local button = GetMouseButtonClicked and GetMouseButtonClicked()
+			if button and button ~= "LeftButton" then return end
+			Safe("item", OpenItem, link)
+		end)
+		hooked.itemClick = true
+	end
+
+	if not hooked.itemTooltip then
+		if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum and Enum.TooltipDataType then
+			TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, function(tooltip, data)
+				Safe("item tooltip", AppendItemTooltip, tooltip, data and data.id)
+			end)
+			hooked.itemTooltip = true
+		elseif GameTooltip and GameTooltip.HasScript and GameTooltip:HasScript("OnTooltipSetItem") then
+			for _, tooltip in ipairs({ GameTooltip, ItemRefTooltip }) do
+				tooltip:HookScript("OnTooltipSetItem", function(self)
+					Safe("item tooltip", function()
+						local _, link = self:GetItem()
+						AppendItemTooltip(self, ItemIDFromLink(link))
+					end)
+				end)
+			end
+			hooked.itemTooltip = true
+		end
+	end
+
+	if C_Timer and C_Timer.After then
+		C_Timer.After(INDEX_DELAY, function() Safe("item index", BuildItemIndex) end)
+	end
+end
+
+---------------------------------------------------------------------------
+-- RareScanner (optional): a Wowhead icon on its "rare found" alert.
+-- The alert is a secure button, so the icon is a separate child button
+-- created out of combat at login; it reads what the alert is showing.
+---------------------------------------------------------------------------
+local function OpenRareScannerEntity(alert)
+	local id, name = alert.entityID, alert.name
+	if type(name) ~= "string" or IsSecret(name) then name = nil end
+	id = tonumber(id)
+	local atlas = type(alert.atlasName) == "string" and alert.atlasName:lower() or ""
+	if id and atlas:find("loot", 1, true) then
+		OpenUnit({ kind = "object", id = id, name = name })
+	elseif id and not atlas:find("event", 1, true) then
+		OpenUnit({ kind = "npc", id = id, name = name })
+	elseif name then -- events have no Wowhead page of their own
+		ShowURL(SearchURL(name), name .. " · " .. L.SEARCH)
+	end
+end
+
+local function HookRareScanner()
+	if hooked.rareScanner then return end
+	local alert = _G.RARESCANNER_BUTTON
+	if type(alert) ~= "table" or not alert.GetObjectType then return end
+	local b = CreateFrame("Button", "WowheadForeverLinkRareButton", alert)
+	b:SetSize(18, 18)
+	b:SetPoint("TOPRIGHT", alert, "TOPRIGHT", -4, -4)
+	b:SetFrameLevel(alert:GetFrameLevel() + 10)
+	b:RegisterForClicks("LeftButtonUp")
+	local t = b:CreateTexture(nil, "ARTWORK")
+	t:SetAllPoints()
+	t:SetTexture(ICON)
+	b:SetHighlightTexture(ICON, "ADD")
+	b:SetScript("OnClick", function(self) Safe("rare button", OpenRareScannerEntity, self:GetParent()) end)
+	b:SetScript("OnEnter", function(self) ShowTooltip(self, L.RARE_BUTTON) end)
+	b:SetScript("OnLeave", HideTooltip)
+	hooked.rareScanner = true
+end
+
+---------------------------------------------------------------------------
 -- Right-click on a portrait: entry in Blizzard's unit menu
 ---------------------------------------------------------------------------
 -- Tags from UnitPopupShared ("MENU_UNIT_" .. which). An NPC in the target
@@ -474,6 +887,12 @@ local function SlashCommand(text)
 			questDetails = hooked.questDetails or false,
 			questFrame = hooked.questFrame or false,
 			menus = hooked.menus or false,
+			questie = hooked.questie or false,
+			questieTooltip = hooked.questieTooltip or false,
+			itemClick = hooked.itemClick or false,
+			itemTooltip = hooked.itemTooltip or false,
+			itemIndex = indexState,
+			rareScanner = hooked.rareScanner or false,
 			target = cachedTarget and cachedTarget.kind or "none",
 		}
 		for k, v in pairs(DB.status) do print("  " .. k .. " = " .. tostring(v)) end
@@ -508,6 +927,10 @@ events:SetScript("OnEvent", function(_, event, arg1)
 		Safe("target button", CreateTargetButton)
 		Safe("hooks", HookQuestFrames)
 		Safe("menus", HookUnitMenus)
+		Safe("questie", HookQuestieMap)
+		Safe("questie tooltip", HookQuestieTooltip)
+		Safe("quest items", HookQuestItems)
+		Safe("rarescanner", HookRareScanner)
 		Print(L.READY)
 	elseif event == "PLAYER_TARGET_CHANGED" then
 		Safe("target changed", UpdateTargetButton)
