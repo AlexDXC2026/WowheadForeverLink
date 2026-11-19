@@ -6,7 +6,16 @@ The addon and the companion app share one version number.
 
 ## [Unreleased]
 
+### Added
+- Addon: **Alt + click on a Questie map icon** (world map or minimap) opens that quest on Wowhead, also for quests you have not taken yet. The icon tooltip shows the hint.
+- Addon: for quests not in your log, the link window says whether you can take it, using Questie's database: Questie's availability verdict, the required level and every previous quest, each marked done or missing.
+- Addon: quest titles come from Questie when the quest is not in your log.
+- Addon: **hovering a Questie "!" icon** (map or minimap) adds the same "can you take it?" lines to its tooltip: Questie's verdict (already completed, in your log, missing pre-quest...), level and previous quests marked done or missing. The lines stay when Questie redraws the tooltip on Shift.
+- Addon: **Alt + click an item** (bags, chat link, loot window) opens its quest on Wowhead: one not taken yet first, then one in the log; quests of other races and classes are skipped. Items without such a quest open the item page. The tooltip of a quest item shows the hint. The item's quests come from LibQuestieDB (installed with Questie), indexed in the background after login.
+- Addon: **Wowhead icon on RareScanner's "rare found" alert**: NPC page on the loot tab, container contents, or a search for events.
+
 ### Fixed
+- Addon: "Battle at the Mannoroc Coven" (paladin) said "No previous quests required". Questie's database leaves out its pre-quest, the Althalaxx Orb chain ending in "Return to Delgren"; the addon now adds it, and hides Questie's "Available" verdict while it is not done.
 - Companion app: after running for a few minutes, the floating window opened behind the game again. Windows' foreground lock refuses `HWND_TOPMOST` from a background app once its start-up grace period (`ForegroundLockTimeout`) ends. The window is now created topmost from the start, and if Windows still refuses, the call is retried while sharing the game thread's input state (focus does not move).
 
 ## [1.2.1] - 2026-11-18
