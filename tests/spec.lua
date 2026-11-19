@@ -151,10 +151,10 @@ local questieDB = {
 }
 -- LibQuestieDB (the database Questie is built on): items listed per quest.
 local QUESTIEDB_OBJECTIVES = {
-	[783] = { nil, nil, { { 4278 } } }, -- in the log
-	[100] = { nil, nil, { { 4278 } } }, -- completed
+	[783] = { nil, nil, { { 4278 }, { 6666 } } }, -- in the log
+	[100] = { nil, nil, { { 4278 }, { 3333 } } }, -- completed
 	[900] = { nil, nil, { { 4278 } } }, -- another race
-	[1181] = { nil, nil, { 4278 } }, -- bare ID; not doable, so listed after 1180
+	[1181] = { nil, nil, { 4278 } }, -- bare ID
 	[1180] = { nil, nil, { { 4278, "Lesser Bloodstone Ore" } } },
 	[501] = { nil, nil, { { 7777 } } },
 }
@@ -202,6 +202,7 @@ function GetMouseButtonClicked() return MOUSE_BUTTON end
 function HandleModifiedItemClick() return false end
 Enum = { TooltipDataType = { Item = 0 } }
 ItemRefTooltip = NewFrame()
+RARESCANNER_BUTTON = NewFrame(UIParent) -- RareScanner's "rare found" alert
 TooltipDataProcessor = { AddTooltipPostCall = function(kind, f) if kind == Enum.TooltipDataType.Item then ITEM_POSTCALL = f end end }
 
 -- Load the addon files in .toc order with a shared namespace
@@ -378,53 +379,69 @@ check(not tooltipText():find(ns.L.REQ_TITLE, 1, true), "requirements on an objec
 SlashCmdList.WOWHEADFOREVERLINK("diag")
 check(WowheadForeverLinkDB.status.questie and WowheadForeverLinkDB.status.questieTooltip, "diag questie")
 
--- Quest items: Alt + click opens the quest not taken yet; the tooltip gives the hint
-local function itemLink(id) return "|cffffffff|Hitem:" .. id .. "::::::::36:::::|h[Item]|h|r" end
+-- Items: Alt + click opens the item's quest (no requirements), or the item page
+local function itemLink(id) return "|cffffffff|Hitem:" .. id .. "::::::::36:::::|h[Item " .. id .. "]|h|r" end
+local function altClick(link) ALT = true; HandleModifiedItemClick(link); ALT = false end
 check(#TICKERS == 1, "item index not started after login")
-SlashCmdList.WOWHEADFOREVERLINK("q 5")
-ALT = true; HandleModifiedItemClick(itemLink(5000)); ALT = false
+altClick(itemLink(5000))
 check(lastURL() == B .. "quest=700", "item that starts a quest: " .. tostring(lastURL()))
-SlashCmdList.WOWHEADFOREVERLINK("q 5")
-ALT = true; HandleModifiedItemClick(itemLink(4278)); ALT = false
-check(lastURL() == B .. "quest=5", "opened before the index was built")
-check(LOG[#LOG]:find(ns.L.ITEM_INDEX_BUILDING, 1, true), "no notice while building")
+check(not info():IsShown(), "requirements shown for an item's quest")
+altClick(itemLink(4278))
+check(lastURL() == B .. "item=4278", "item page before the index was built: " .. tostring(lastURL()))
+check(WowheadForeverLinkWindow.title.text == "Item 4278", "item title: " .. tostring(WowheadForeverLinkWindow.title.text))
 RunTickers()
-ALT = true; HandleModifiedItemClick(itemLink(4278)); ALT = false
+altClick(itemLink(4278))
 check(lastURL() == B .. "quest=1180", "objective item URL: " .. tostring(lastURL()))
 check(WowheadForeverLinkWindow.title.text == "A Favor for Krazek", "item quest title")
-check(tostring(info().text):find(ns.L.REQ_LEVEL:format(30, 36), 1, true), "item quest requirements")
-check(LOG[#LOG]:find("Ore for the Goblins (/wh q 1181)", 1, true), "other quests not listed: " .. LOG[#LOG])
-check(not LOG[#LOG]:find("Orcs Only", 1, true), "quest of another race listed")
+check(not info():IsShown(), "requirements shown for an item's quest")
+altClick(itemLink(7777)); check(lastURL() == B .. "quest=501", "item of a quest with no name")
+altClick(itemLink(8888)); check(lastURL() == B .. "quest=600", "required source item")
+altClick(itemLink(6666)); check(lastURL() == B .. "quest=783", "item of a quest in the log")
+altClick(itemLink(3333)); check(lastURL() == B .. "item=3333", "item of a done quest opens the item")
+altClick(itemLink(9999)); check(lastURL() == B .. "item=9999", "item without quests opens the item")
+
 SlashCmdList.WOWHEADFOREVERLINK("q 5")
 HandleModifiedItemClick(itemLink(4278))
 check(lastURL() == B .. "quest=5", "click without Alt opened Wowhead")
 ALT = true; SHIFT = true; HandleModifiedItemClick(itemLink(4278)); ALT = false; SHIFT = false
 check(lastURL() == B .. "quest=5", "Alt+Shift click opened Wowhead")
-MOUSE_BUTTON = "RightButton"
-ALT = true; HandleModifiedItemClick(itemLink(4278)); ALT = false
-MOUSE_BUTTON = "LeftButton"
+MOUSE_BUTTON = "RightButton"; altClick(itemLink(4278)); MOUSE_BUTTON = "LeftButton"
 check(lastURL() == B .. "quest=5", "Alt+right click opened Wowhead")
-ALT = true; HandleModifiedItemClick(itemLink(9999)); HandleModifiedItemClick(nil); HandleModifiedItemClick(NewSecret()); ALT = false
-check(lastURL() == B .. "quest=5", "item without quests opened Wowhead")
-ALT = true; HandleModifiedItemClick(itemLink(7777)); ALT = false
-check(lastURL() == B .. "quest=501", "item of a quest not in Questie's name list")
-ALT = true; HandleModifiedItemClick(itemLink(8888)); ALT = false
-check(lastURL() == B .. "quest=600", "required source item")
+altClick(nil); altClick(NewSecret()); altClick("not a link")
+check(lastURL() == B .. "quest=5", "bad link opened Wowhead")
 
+-- Item tooltip: hint only when the item has a quest
 GameTooltip:SetOwner(UIParent); ITEM_POSTCALL(GameTooltip, { id = 4278 })
 check(GameTooltip.lines[#GameTooltip.lines] == ns.L.ITEM_ALT_CLICK, "no hint on a quest item tooltip")
 GameTooltip:SetOwner(UIParent); ITEM_POSTCALL(GameTooltip, { id = 9999 })
 check(#GameTooltip.lines == 0, "hint on an item without quests")
+GameTooltip:SetOwner(UIParent); ITEM_POSTCALL(GameTooltip, { id = 3333 })
+check(#GameTooltip.lines == 0, "hint on an item of a done quest")
 local compare = NewFrame(); compare:SetOwner(UIParent); ITEM_POSTCALL(compare, { id = 4278 })
 check(#compare.lines == 0, "hint on a comparison tooltip")
 GameTooltip:SetOwner(UIParent); ITEM_POSTCALL(GameTooltip, { id = NewSecret() }); ITEM_POSTCALL(GameTooltip, nil)
 check(#GameTooltip.lines == 0, "hint with a secret or missing item")
-COMPLETED[1180] = true; COMPLETED[1181] = true
-GameTooltip:SetOwner(UIParent); ITEM_POSTCALL(GameTooltip, { id = 4278 })
-check(#GameTooltip.lines == 0, "hint once every quest of the item is done")
+
+-- RareScanner alert: Wowhead icon on it
+local rare = WowheadForeverLinkRareButton
+check(rare ~= nil and rare.parent == RARESCANNER_BUTTON, "no icon on RareScanner's alert")
+RARESCANNER_BUTTON.entityID = 61; RARESCANNER_BUTTON.name = "Thuros Lightfingers"; RARESCANNER_BUTTON.atlasName = "VignetteKillElite"
+rare.scripts.OnClick(rare)
+check(lastURL() == B .. "npc=61#drops", "rare NPC URL: " .. tostring(lastURL()))
+RARESCANNER_BUTTON.entityID = "2843"; RARESCANNER_BUTTON.name = "Battered Chest"; RARESCANNER_BUTTON.atlasName = "VignetteLoot"
+rare.scripts.OnClick(rare)
+check(lastURL() == B .. "object=2843#contains", "rare container URL: " .. tostring(lastURL()))
+RARESCANNER_BUTTON.entityID = 900; RARESCANNER_BUTTON.name = "Storm"; RARESCANNER_BUTTON.atlasName = "VignetteEvent"
+rare.scripts.OnClick(rare)
+check(lastURL() == B .. "search?q=Storm", "rare event URL: " .. tostring(lastURL()))
+SlashCmdList.WOWHEADFOREVERLINK("q 5")
+RARESCANNER_BUTTON.entityID = nil; RARESCANNER_BUTTON.name = nil
+rare.scripts.OnClick(rare)
+check(lastURL() == B .. "quest=5", "alert without a rare opened Wowhead")
+
 SlashCmdList.WOWHEADFOREVERLINK("diag")
 s = WowheadForeverLinkDB.status
-check(s.itemClick and s.itemTooltip and s.itemIndex == "ready", "diag items")
+check(s.itemClick and s.itemTooltip and s.itemIndex == "ready" and s.rareScanner, "diag items and rares")
 
 -- Any red error line in chat means a code path failed
 for _, l in ipairs(LOG) do

@@ -297,7 +297,8 @@ local function QuestRequirements(db, questID)
 	return lines
 end
 
-local function OpenQuest(questID)
+-- withoutRequirements: just the link, as for quest items.
+local function OpenQuest(questID, withoutRequirements)
 	if not questID or IsSecret(questID) or questID == 0 then
 		Print(L.NO_QUEST)
 		return
@@ -311,7 +312,7 @@ local function OpenQuest(questID)
 	title = title or QuestieQuestName(db, questID)
 	local info
 	local onQuest = C_QuestLog and C_QuestLog.IsOnQuest and C_QuestLog.IsOnQuest(questID)
-	if onQuest ~= true then -- requirements only matter for quests not taken yet
+	if not withoutRequirements and onQuest ~= true then -- requirements only matter for quests not taken yet
 		local ok, lines = pcall(QuestRequirements, db, questID)
 		if ok then info = lines else Diag("requirements: " .. tostring(lines)) end
 	end
@@ -662,67 +663,54 @@ local function ItemIDFromLink(link)
 	return tonumber(link:match("item:(%d+)"))
 end
 
--- Quests the item is for that this character has neither taken nor done,
--- skipping other races and classes. With rank, the doable ones come first.
-local function PendingItemQuests(itemID, rank)
+-- The quest an item is for: one not taken yet first, then one in the log.
+-- Done quests and quests of other races or classes do not count.
+local function ItemQuest(itemID)
 	local lib = QuestieLib()
-	if not lib or type(itemID) ~= "number" then return {} end
+	if not lib or type(itemID) ~= "number" then return nil end
 	local player = QuestieModule("QuestiePlayer")
-	local quests, seen = {}, {}
-	local function Consider(questID)
-		if type(questID) ~= "number" or seen[questID] then return end
-		seen[questID] = true
-		if IsQuestCompleted(questID) then return end
-		local onQuest = C_QuestLog and C_QuestLog.IsOnQuest and C_QuestLog.IsOnQuest(questID)
-		if not IsSecret(onQuest) and onQuest == true then return end
+	local inLog
+	local function Pending(questID)
+		if type(questID) ~= "number" or IsQuestCompleted(questID) then return false end
 		if player then
-			if player.HasRequiredRace and not player.HasRequiredRace(lib.Quest.Get(questID, "requiredRaces")) then return end
-			if player.HasRequiredClass and not player.HasRequiredClass(lib.Quest.Get(questID, "requiredClasses")) then return end
+			if player.HasRequiredRace and not player.HasRequiredRace(lib.Quest.Get(questID, "requiredRaces")) then return false end
+			if player.HasRequiredClass and not player.HasRequiredClass(lib.Quest.Get(questID, "requiredClasses")) then return false end
 		end
-		quests[#quests + 1] = questID
+		local onQuest = C_QuestLog and C_QuestLog.IsOnQuest and C_QuestLog.IsOnQuest(questID)
+		if not IsSecret(onQuest) and onQuest == true then
+			inLog = inLog or questID
+			return false
+		end
+		return true
 	end
+	local candidates = {}
 	local ok, starts = pcall(lib.Item.Get, itemID, "startQuest")
-	if ok then pcall(Consider, starts) end
-	for _, questID in ipairs(itemQuests and itemQuests[itemID] or {}) do pcall(Consider, questID) end
-
-	local db = rank and #quests > 1 and QuestieModule("QuestieDB")
-	if db and db.IsDoable then
-		local doable = {}
-		for _, questID in ipairs(quests) do
-			local okDo, can = pcall(db.IsDoable, questID)
-			doable[questID] = okDo and can == true
-		end
-		table.sort(quests, function(a, b)
-			if doable[a] ~= doable[b] then return doable[a] end
-			return a < b
-		end)
+	if ok then candidates[1] = starts end
+	for _, questID in ipairs(itemQuests and itemQuests[itemID] or {}) do candidates[#candidates + 1] = questID end
+	for _, questID in ipairs(candidates) do
+		local okP, pending = pcall(Pending, questID)
+		if okP and pending then return questID end
 	end
-	return quests
+	return inLog
 end
 
-local function OpenItemQuest(link)
+-- Alt + click on an item: the page of its quest, or of the item itself.
+local function OpenItem(link)
 	local itemID = ItemIDFromLink(link)
 	if not itemID then return end
-	local quests = PendingItemQuests(itemID, true)
-	if #quests == 0 then
-		if indexState == "building" then Print(L.ITEM_INDEX_BUILDING) end
+	local questID = ItemQuest(itemID)
+	if questID then
+		OpenQuest(questID, true)
 		return
 	end
-	OpenQuest(quests[1])
-	if #quests > 1 then
-		local db = QuestieModule("QuestieDB")
-		local others = {}
-		for i = 2, #quests do
-			others[#others + 1] = (QuestieQuestName(db, quests[i]) or L.QUEST:format(quests[i])) .. " (/wh q " .. quests[i] .. ")"
-		end
-		Print(L.ITEM_OTHER_QUESTS .. " " .. table.concat(others, ", "))
-	end
+	local name = link:match("|h%[(.-)%]|h")
+	ShowURL(BASE .. "item=" .. itemID, name or L.ITEM:format(itemID))
 end
 
 local function AppendItemTooltip(tooltip, itemID)
 	if tooltip ~= GameTooltip and tooltip ~= ItemRefTooltip then return end -- not the comparison ones
 	if type(itemID) ~= "number" or IsSecret(itemID) then return end
-	if #PendingItemQuests(itemID, false) == 0 then return end
+	if not ItemQuest(itemID) then return end
 	tooltip:AddLine(L.ITEM_ALT_CLICK, 0.22, 0.75, 0.93)
 	tooltip:Show()
 end
@@ -734,7 +722,7 @@ local function HookQuestItems()
 			if not IsAltKeyDown() or IsShiftKeyDown() or IsControlKeyDown() then return end
 			local button = GetMouseButtonClicked and GetMouseButtonClicked()
 			if button and button ~= "LeftButton" then return end
-			Safe("quest item", OpenItemQuest, link)
+			Safe("item", OpenItem, link)
 		end)
 		hooked.itemClick = true
 	end
@@ -761,6 +749,44 @@ local function HookQuestItems()
 	if C_Timer and C_Timer.After then
 		C_Timer.After(INDEX_DELAY, function() Safe("item index", BuildItemIndex) end)
 	end
+end
+
+---------------------------------------------------------------------------
+-- RareScanner (optional): a Wowhead icon on its "rare found" alert.
+-- The alert is a secure button, so the icon is a separate child button
+-- created out of combat at login; it reads what the alert is showing.
+---------------------------------------------------------------------------
+local function OpenRareScannerEntity(alert)
+	local id, name = alert.entityID, alert.name
+	if type(name) ~= "string" or IsSecret(name) then name = nil end
+	id = tonumber(id)
+	local atlas = type(alert.atlasName) == "string" and alert.atlasName:lower() or ""
+	if id and atlas:find("loot", 1, true) then
+		OpenUnit({ kind = "object", id = id, name = name })
+	elseif id and not atlas:find("event", 1, true) then
+		OpenUnit({ kind = "npc", id = id, name = name })
+	elseif name then -- events have no Wowhead page of their own
+		ShowURL(SearchURL(name), name .. " · " .. L.SEARCH)
+	end
+end
+
+local function HookRareScanner()
+	if hooked.rareScanner then return end
+	local alert = _G.RARESCANNER_BUTTON
+	if type(alert) ~= "table" or not alert.GetObjectType then return end
+	local b = CreateFrame("Button", "WowheadForeverLinkRareButton", alert)
+	b:SetSize(18, 18)
+	b:SetPoint("TOPRIGHT", alert, "TOPRIGHT", -4, -4)
+	b:SetFrameLevel(alert:GetFrameLevel() + 10)
+	b:RegisterForClicks("LeftButtonUp")
+	local t = b:CreateTexture(nil, "ARTWORK")
+	t:SetAllPoints()
+	t:SetTexture(ICON)
+	b:SetHighlightTexture(ICON, "ADD")
+	b:SetScript("OnClick", function(self) Safe("rare button", OpenRareScannerEntity, self:GetParent()) end)
+	b:SetScript("OnEnter", function(self) ShowTooltip(self, L.RARE_BUTTON) end)
+	b:SetScript("OnLeave", HideTooltip)
+	hooked.rareScanner = true
 end
 
 ---------------------------------------------------------------------------
@@ -841,6 +867,7 @@ local function SlashCommand(text)
 			itemClick = hooked.itemClick or false,
 			itemTooltip = hooked.itemTooltip or false,
 			itemIndex = indexState,
+			rareScanner = hooked.rareScanner or false,
 			target = cachedTarget and cachedTarget.kind or "none",
 		}
 		for k, v in pairs(DB.status) do print("  " .. k .. " = " .. tostring(v)) end
@@ -878,6 +905,7 @@ events:SetScript("OnEvent", function(_, event, arg1)
 		Safe("questie", HookQuestieMap)
 		Safe("questie tooltip", HookQuestieTooltip)
 		Safe("quest items", HookQuestItems)
+		Safe("rarescanner", HookRareScanner)
 		Print(L.READY)
 	elseif event == "PLAYER_TARGET_CHANGED" then
 		Safe("target changed", UpdateTargetButton)
