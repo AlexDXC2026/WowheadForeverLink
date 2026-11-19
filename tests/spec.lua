@@ -15,6 +15,20 @@ UISpecialFrames = {}
 TIMERS = {}
 C_Timer = { After = function(_, f) TIMERS[#TIMERS + 1] = f end }
 function RunTimers() local t = TIMERS; TIMERS = {}; for _, f in ipairs(t) do f() end end
+TICKERS = {}
+function C_Timer.NewTicker(_, f)
+	local t = { f = f }
+	function t:Cancel() self.cancelled = true end
+	TICKERS[#TICKERS + 1] = t
+	return t
+end
+function RunTickers()
+	for _, t in ipairs(TICKERS) do
+		local guard = 0
+		while not t.cancelled do t.f(); guard = guard + 1; assert(guard < 1000, "ticker never ends") end
+	end
+	TICKERS = {}
+end
 function GetBuildInfo() return "1.60.1", "70959", "", 16001 end
 function GetLocale() return LOCALE end
 C_AddOns = { GetAddOnMetadata = function(_, field) return field == "Version" and "1.2.0" or nil end }
@@ -125,11 +139,40 @@ QUESTIE_QUESTS = {
 	[500] = { name = "Into the Swamp", requiredLevel = 30, preQuestGroup = { 100, -101 } },
 	[600] = { name = "High Road", requiredLevel = 40, preQuestSingle = { 100 } },
 	[700] = { name = "Free Quest" },
+	[1180] = { name = "A Favor for Krazek", requiredLevel = 30 },
+	[1181] = { name = "Ore for the Goblins" },
+	[900] = { name = "Orcs Only", requiredRaces = 2 },
 }
 local questieDB = {
 	GetQuest = function(id) return QUESTIE_QUESTS[id] end,
 	QueryQuestSingle = function(id, key) local q = QUESTIE_QUESTS[id]; return q and q[key] end,
 	IsDoableVerbose = function(id) return id == 500 and "Unavailable: Missing pre-quest" or "Available" end,
+	IsDoable = function(id) return id ~= 1181 end,
+}
+-- LibQuestieDB (the database Questie is built on): items listed per quest.
+local QUESTIEDB_OBJECTIVES = {
+	[783] = { nil, nil, { { 4278 } } }, -- in the log
+	[100] = { nil, nil, { { 4278 } } }, -- completed
+	[900] = { nil, nil, { { 4278 } } }, -- another race
+	[1181] = { nil, nil, { 4278 } }, -- bare ID; not doable, so listed after 1180
+	[1180] = { nil, nil, { { 4278, "Lesser Bloodstone Ore" } } },
+	[501] = { nil, nil, { { 7777 } } },
+}
+LibQuestieDB = {
+	RequireContract = function(n) return n == 2 end,
+	Quest = {
+		GetAllIds = function() return { 100, 500, 501, 600, 700, 783, 900, 1180, 1181 } end,
+		Get = function(id, key)
+			if key == "objectives" then return QUESTIEDB_OBJECTIVES[id] or {} end
+			if key == "requiredSourceItems" then return id == 600 and { 8888 } or nil end
+			local q = QUESTIE_QUESTS[id]; return q and q[key]
+		end,
+	},
+	Item = { Get = function(id, key) if key == "startQuest" and id == 5000 then return 700 end end },
+}
+local questiePlayer = {
+	HasRequiredRace = function(mask) return not mask or mask == 0 or mask % 2 == 1 end, -- human
+	HasRequiredClass = function() return true end,
 }
 local questieFrames = 1
 local questiePool = {}
@@ -149,9 +192,17 @@ function questieTooltip.ShowOnTooltip(icon, tooltip)
 end
 QuestieLoader = {
 	ImportModule = function(_, name)
-		return ({ QuestieDB = questieDB, QuestieFramePool = questiePool, MapIconTooltip = questieTooltip })[name]
+		return ({ QuestieDB = questieDB, QuestieFramePool = questiePool, MapIconTooltip = questieTooltip, QuestiePlayer = questiePlayer })[name]
 	end,
 }
+
+-- Item clicks and item tooltips
+MOUSE_BUTTON = "LeftButton"
+function GetMouseButtonClicked() return MOUSE_BUTTON end
+function HandleModifiedItemClick() return false end
+Enum = { TooltipDataType = { Item = 0 } }
+ItemRefTooltip = NewFrame()
+TooltipDataProcessor = { AddTooltipPostCall = function(kind, f) if kind == Enum.TooltipDataType.Item then ITEM_POSTCALL = f end end }
 
 -- Load the addon files in .toc order with a shared namespace
 local ns = {}
@@ -326,6 +377,54 @@ questieTooltip.ShowOnTooltip(icon, GameTooltip)
 check(not tooltipText():find(ns.L.REQ_TITLE, 1, true), "requirements on an objective icon")
 SlashCmdList.WOWHEADFOREVERLINK("diag")
 check(WowheadForeverLinkDB.status.questie and WowheadForeverLinkDB.status.questieTooltip, "diag questie")
+
+-- Quest items: Alt + click opens the quest not taken yet; the tooltip gives the hint
+local function itemLink(id) return "|cffffffff|Hitem:" .. id .. "::::::::36:::::|h[Item]|h|r" end
+check(#TICKERS == 1, "item index not started after login")
+SlashCmdList.WOWHEADFOREVERLINK("q 5")
+ALT = true; HandleModifiedItemClick(itemLink(5000)); ALT = false
+check(lastURL() == B .. "quest=700", "item that starts a quest: " .. tostring(lastURL()))
+SlashCmdList.WOWHEADFOREVERLINK("q 5")
+ALT = true; HandleModifiedItemClick(itemLink(4278)); ALT = false
+check(lastURL() == B .. "quest=5", "opened before the index was built")
+check(LOG[#LOG]:find(ns.L.ITEM_INDEX_BUILDING, 1, true), "no notice while building")
+RunTickers()
+ALT = true; HandleModifiedItemClick(itemLink(4278)); ALT = false
+check(lastURL() == B .. "quest=1180", "objective item URL: " .. tostring(lastURL()))
+check(WowheadForeverLinkWindow.title.text == "A Favor for Krazek", "item quest title")
+check(tostring(info().text):find(ns.L.REQ_LEVEL:format(30, 36), 1, true), "item quest requirements")
+check(LOG[#LOG]:find("Ore for the Goblins (/wh q 1181)", 1, true), "other quests not listed: " .. LOG[#LOG])
+check(not LOG[#LOG]:find("Orcs Only", 1, true), "quest of another race listed")
+SlashCmdList.WOWHEADFOREVERLINK("q 5")
+HandleModifiedItemClick(itemLink(4278))
+check(lastURL() == B .. "quest=5", "click without Alt opened Wowhead")
+ALT = true; SHIFT = true; HandleModifiedItemClick(itemLink(4278)); ALT = false; SHIFT = false
+check(lastURL() == B .. "quest=5", "Alt+Shift click opened Wowhead")
+MOUSE_BUTTON = "RightButton"
+ALT = true; HandleModifiedItemClick(itemLink(4278)); ALT = false
+MOUSE_BUTTON = "LeftButton"
+check(lastURL() == B .. "quest=5", "Alt+right click opened Wowhead")
+ALT = true; HandleModifiedItemClick(itemLink(9999)); HandleModifiedItemClick(nil); HandleModifiedItemClick(NewSecret()); ALT = false
+check(lastURL() == B .. "quest=5", "item without quests opened Wowhead")
+ALT = true; HandleModifiedItemClick(itemLink(7777)); ALT = false
+check(lastURL() == B .. "quest=501", "item of a quest not in Questie's name list")
+ALT = true; HandleModifiedItemClick(itemLink(8888)); ALT = false
+check(lastURL() == B .. "quest=600", "required source item")
+
+GameTooltip:SetOwner(UIParent); ITEM_POSTCALL(GameTooltip, { id = 4278 })
+check(GameTooltip.lines[#GameTooltip.lines] == ns.L.ITEM_ALT_CLICK, "no hint on a quest item tooltip")
+GameTooltip:SetOwner(UIParent); ITEM_POSTCALL(GameTooltip, { id = 9999 })
+check(#GameTooltip.lines == 0, "hint on an item without quests")
+local compare = NewFrame(); compare:SetOwner(UIParent); ITEM_POSTCALL(compare, { id = 4278 })
+check(#compare.lines == 0, "hint on a comparison tooltip")
+GameTooltip:SetOwner(UIParent); ITEM_POSTCALL(GameTooltip, { id = NewSecret() }); ITEM_POSTCALL(GameTooltip, nil)
+check(#GameTooltip.lines == 0, "hint with a secret or missing item")
+COMPLETED[1180] = true; COMPLETED[1181] = true
+GameTooltip:SetOwner(UIParent); ITEM_POSTCALL(GameTooltip, { id = 4278 })
+check(#GameTooltip.lines == 0, "hint once every quest of the item is done")
+SlashCmdList.WOWHEADFOREVERLINK("diag")
+s = WowheadForeverLinkDB.status
+check(s.itemClick and s.itemTooltip and s.itemIndex == "ready", "diag items")
 
 -- Any red error line in chat means a code path failed
 for _, l in ipairs(LOG) do

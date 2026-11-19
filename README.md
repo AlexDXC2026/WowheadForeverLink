@@ -29,6 +29,7 @@ The project has two parts:
 - **Quest log**: an icon on every quest and a **Wowhead** button in the quest details.
 - **Quest giver window**: an icon next to the close button, to check a quest before accepting it.
 - **Questie map icons**: **Alt + click** any quest icon on the world map or minimap to open it on Wowhead. For quests you have not taken, the window also says whether you can take it: level, previous quests (done or missing) and Questie's verdict. **Hovering** a "!" icon shows the same lines in its tooltip.
+- **Quest items**: **Alt + click** an item for a quest you have not taken yet (in your bags, a chat link or the loot window) to open that quest on Wowhead, with the same "can you take it?" lines. It works for items a quest asks for and for items that start one. Its tooltip says so. Needs Questie; the item list is ready a few seconds after logging in.
 - **Key bindings** (Options → Keybindings → AddOns): Wowhead for your target or for the unit under the mouse.
 - Links always point to the **Forever** section of Wowhead, in your **client language** (English, Spanish, German, French, Italian, Portuguese, Russian, Korean and Chinese).
 
@@ -93,6 +94,7 @@ Abre **Wowhead (WoW Forever)** con el botín de cualquier PNJ o con cualquier mi
 - **Registro de misiones**: icono en cada misión y botón **Wowhead** en el detalle.
 - **Ventana del PNJ que da misiones**: icono junto a la X para revisar la misión antes de aceptarla.
 - **Iconos de Questie en el mapa**: **Alt + clic** en cualquier icono de misión del mapa o del minimapa la abre en Wowhead. Si aún no la tienes, la ventana te dice si puedes cogerla: nivel, misiones previas (hechas o pendientes) y el veredicto de Questie. **Al pasar el ratón** por un "!" lo ves en su tooltip.
+- **Objetos de misión**: **Alt + clic** en un objeto de una misión que aún no has cogido (en las bolsas, un enlace del chat o la ventana de botín) abre esa misión en Wowhead, con las mismas líneas de "¿puedes cogerla?". Sirve para objetos que pide una misión y para objetos que la inician. Su tooltip lo indica. Necesita Questie; la lista de objetos está lista unos segundos después de entrar.
 - **Atajos de teclado** (Opciones → Atajos → Addons).
 - Comandos: `/wh`, `/wh m <id>`, `/wh <texto>`, `/wh ultima`, `/wh reset`, `/wh diag`.
 - Los enlaces van siempre a la sección **Forever** de Wowhead, en el **idioma de tu cliente**.

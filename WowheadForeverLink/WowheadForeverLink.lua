@@ -576,6 +576,194 @@ local function HookQuestieMap()
 end
 
 ---------------------------------------------------------------------------
+-- Quest items (bags, chat links, loot): Alt + click an item that a quest not
+-- taken yet asks for, or that starts one, opens that quest with its requirements.
+-- The data comes from LibQuestieDB, installed with Questie. It lists the items of
+-- each quest, so the item -> quests index is built once per session, a few
+-- quests per frame.
+---------------------------------------------------------------------------
+local QUESTIEDB_CONTRACT = 2
+local OBJECTIVE_ITEMS = 3 -- position of the item group in a quest's objectives
+local QUESTS_PER_TICK = 40
+local INDEX_DELAY = 10 -- seconds after login: Questie loads its own data first
+
+local itemQuests -- [itemID] = { questID, ... }; nil until built
+local indexState = "none" -- none, building, ready
+
+local function QuestieLib()
+	local lib = LibQuestieDB
+	if type(lib) ~= "table" or type(lib.Quest) ~= "table" or type(lib.Item) ~= "table" then return nil end
+	if type(lib.RequireContract) == "function" then
+		local ok, fits = pcall(lib.RequireContract, QUESTIEDB_CONTRACT)
+		if not (ok and fits) then return nil end
+	end
+	return lib
+end
+
+local function AddItemQuest(index, itemID, questID)
+	if type(itemID) ~= "number" or itemID <= 0 then return end
+	local list = index[itemID]
+	if not list then
+		index[itemID] = { questID }
+		return
+	end
+	for _, known in ipairs(list) do
+		if known == questID then return end
+	end
+	list[#list + 1] = questID
+end
+
+local function IndexQuest(lib, index, questID)
+	local objectives = lib.Quest.Get(questID, "objectives")
+	local items = type(objectives) == "table" and objectives[OBJECTIVE_ITEMS]
+	if type(items) == "table" then
+		for _, entry in ipairs(items) do
+			-- Entries are { itemID, ... } tuples, or a bare ID.
+			AddItemQuest(index, type(entry) == "table" and entry[1] or entry, questID)
+		end
+	end
+	-- Needed to start the quest without being an objective.
+	local needed = lib.Quest.Get(questID, "requiredSourceItems")
+	if type(needed) == "table" then
+		for _, itemID in ipairs(needed) do AddItemQuest(index, itemID, questID) end
+	end
+end
+
+local function BuildItemIndex()
+	if indexState ~= "none" then return end
+	local lib = QuestieLib()
+	if not (lib and type(lib.Quest.GetAllIds) == "function" and C_Timer and C_Timer.NewTicker) then return end
+	local ok, ids = pcall(lib.Quest.GetAllIds)
+	if not ok or type(ids) ~= "table" then
+		Diag("item index: " .. tostring(ids))
+		return
+	end
+	indexState = "building"
+	local index, position, failed = {}, 1, 0
+	local ticker
+	ticker = C_Timer.NewTicker(0.05, function()
+		for _ = 1, QUESTS_PER_TICK do
+			local questID = ids[position]
+			if questID == nil then
+				ticker:Cancel()
+				itemQuests = index
+				indexState = "ready"
+				if failed > 0 then Diag("item index: " .. failed .. " quests unreadable") end
+				return
+			end
+			position = position + 1
+			if not pcall(IndexQuest, lib, index, questID) then failed = failed + 1 end
+		end
+	end)
+end
+
+local function ItemIDFromLink(link)
+	if type(link) ~= "string" or IsSecret(link) then return nil end
+	return tonumber(link:match("item:(%d+)"))
+end
+
+-- Quests the item is for that this character has neither taken nor done,
+-- skipping other races and classes. With rank, the doable ones come first.
+local function PendingItemQuests(itemID, rank)
+	local lib = QuestieLib()
+	if not lib or type(itemID) ~= "number" then return {} end
+	local player = QuestieModule("QuestiePlayer")
+	local quests, seen = {}, {}
+	local function Consider(questID)
+		if type(questID) ~= "number" or seen[questID] then return end
+		seen[questID] = true
+		if IsQuestCompleted(questID) then return end
+		local onQuest = C_QuestLog and C_QuestLog.IsOnQuest and C_QuestLog.IsOnQuest(questID)
+		if not IsSecret(onQuest) and onQuest == true then return end
+		if player then
+			if player.HasRequiredRace and not player.HasRequiredRace(lib.Quest.Get(questID, "requiredRaces")) then return end
+			if player.HasRequiredClass and not player.HasRequiredClass(lib.Quest.Get(questID, "requiredClasses")) then return end
+		end
+		quests[#quests + 1] = questID
+	end
+	local ok, starts = pcall(lib.Item.Get, itemID, "startQuest")
+	if ok then pcall(Consider, starts) end
+	for _, questID in ipairs(itemQuests and itemQuests[itemID] or {}) do pcall(Consider, questID) end
+
+	local db = rank and #quests > 1 and QuestieModule("QuestieDB")
+	if db and db.IsDoable then
+		local doable = {}
+		for _, questID in ipairs(quests) do
+			local okDo, can = pcall(db.IsDoable, questID)
+			doable[questID] = okDo and can == true
+		end
+		table.sort(quests, function(a, b)
+			if doable[a] ~= doable[b] then return doable[a] end
+			return a < b
+		end)
+	end
+	return quests
+end
+
+local function OpenItemQuest(link)
+	local itemID = ItemIDFromLink(link)
+	if not itemID then return end
+	local quests = PendingItemQuests(itemID, true)
+	if #quests == 0 then
+		if indexState == "building" then Print(L.ITEM_INDEX_BUILDING) end
+		return
+	end
+	OpenQuest(quests[1])
+	if #quests > 1 then
+		local db = QuestieModule("QuestieDB")
+		local others = {}
+		for i = 2, #quests do
+			others[#others + 1] = (QuestieQuestName(db, quests[i]) or L.QUEST:format(quests[i])) .. " (/wh q " .. quests[i] .. ")"
+		end
+		Print(L.ITEM_OTHER_QUESTS .. " " .. table.concat(others, ", "))
+	end
+end
+
+local function AppendItemTooltip(tooltip, itemID)
+	if tooltip ~= GameTooltip and tooltip ~= ItemRefTooltip then return end -- not the comparison ones
+	if type(itemID) ~= "number" or IsSecret(itemID) then return end
+	if #PendingItemQuests(itemID, false) == 0 then return end
+	tooltip:AddLine(L.ITEM_ALT_CLICK, 0.22, 0.75, 0.93)
+	tooltip:Show()
+end
+
+local function HookQuestItems()
+	if not hooked.itemClick and type(HandleModifiedItemClick) == "function" then
+		-- Bags, chat links, loot and merchant buttons all go through this on a modified click.
+		hooksecurefunc("HandleModifiedItemClick", function(link)
+			if not IsAltKeyDown() or IsShiftKeyDown() or IsControlKeyDown() then return end
+			local button = GetMouseButtonClicked and GetMouseButtonClicked()
+			if button and button ~= "LeftButton" then return end
+			Safe("quest item", OpenItemQuest, link)
+		end)
+		hooked.itemClick = true
+	end
+
+	if not hooked.itemTooltip then
+		if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum and Enum.TooltipDataType then
+			TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, function(tooltip, data)
+				Safe("item tooltip", AppendItemTooltip, tooltip, data and data.id)
+			end)
+			hooked.itemTooltip = true
+		elseif GameTooltip and GameTooltip.HasScript and GameTooltip:HasScript("OnTooltipSetItem") then
+			for _, tooltip in ipairs({ GameTooltip, ItemRefTooltip }) do
+				tooltip:HookScript("OnTooltipSetItem", function(self)
+					Safe("item tooltip", function()
+						local _, link = self:GetItem()
+						AppendItemTooltip(self, ItemIDFromLink(link))
+					end)
+				end)
+			end
+			hooked.itemTooltip = true
+		end
+	end
+
+	if C_Timer and C_Timer.After then
+		C_Timer.After(INDEX_DELAY, function() Safe("item index", BuildItemIndex) end)
+	end
+end
+
+---------------------------------------------------------------------------
 -- Right-click on a portrait: entry in Blizzard's unit menu
 ---------------------------------------------------------------------------
 -- Tags from UnitPopupShared ("MENU_UNIT_" .. which). An NPC in the target
@@ -650,6 +838,9 @@ local function SlashCommand(text)
 			menus = hooked.menus or false,
 			questie = hooked.questie or false,
 			questieTooltip = hooked.questieTooltip or false,
+			itemClick = hooked.itemClick or false,
+			itemTooltip = hooked.itemTooltip or false,
+			itemIndex = indexState,
 			target = cachedTarget and cachedTarget.kind or "none",
 		}
 		for k, v in pairs(DB.status) do print("  " .. k .. " = " .. tostring(v)) end
@@ -686,6 +877,7 @@ events:SetScript("OnEvent", function(_, event, arg1)
 		Safe("menus", HookUnitMenus)
 		Safe("questie", HookQuestieMap)
 		Safe("questie tooltip", HookQuestieTooltip)
+		Safe("quest items", HookQuestItems)
 		Print(L.READY)
 	elseif event == "PLAYER_TARGET_CHANGED" then
 		Safe("target changed", UpdateTargetButton)

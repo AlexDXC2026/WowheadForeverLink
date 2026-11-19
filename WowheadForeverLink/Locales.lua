@@ -36,6 +36,9 @@ local L = {
 	REQ_ALL = "Requires all of these quests:",
 	REQ_ONE = "Requires one of these quests:",
 	REQ_NONE = "No previous quests required.",
+	ITEM_ALT_CLICK = "Alt + click: quest not taken yet on Wowhead",
+	ITEM_INDEX_BUILDING = "still reading Questie's quest items, try again in a few seconds.",
+	ITEM_OTHER_QUESTS = "this item is also for:",
 	HELP = {
 		"commands:",
 		"  /wh  — target's loot",
@@ -45,6 +48,7 @@ local L = {
 		"  /wh reset  — move the target button back to its place",
 		"  /wh diag  — addon status",
 		"  Alt + click on a Questie map icon — that quest on Wowhead",
+		"  Alt + click on an item for a quest not taken yet — that quest on Wowhead",
 	},
 }
 
@@ -83,6 +87,9 @@ local esES = {
 	REQ_ALL = "Requiere todas estas misiones:",
 	REQ_ONE = "Requiere una de estas misiones:",
 	REQ_NONE = "No requiere misiones previas.",
+	ITEM_ALT_CLICK = "Alt + clic: misión no aceptada en Wowhead",
+	ITEM_INDEX_BUILDING = "aún leyendo los objetos de misión de Questie, prueba en unos segundos.",
+	ITEM_OTHER_QUESTS = "este objeto también sirve para:",
 	HELP = {
 		"comandos:",
 		"  /wh  — botín del objetivo",
@@ -92,6 +99,7 @@ local esES = {
 		"  /wh reset  — devuelve el botón del objetivo a su sitio",
 		"  /wh diag  — estado del addon",
 		"  Alt + clic en un icono de Questie del mapa — esa misión en Wowhead",
+		"  Alt + clic en un objeto de una misión no aceptada — esa misión en Wowhead",
 	},
 }
 

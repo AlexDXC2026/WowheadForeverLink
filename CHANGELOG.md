@@ -11,6 +11,7 @@ The addon and the companion app share one version number.
 - Addon: for quests not in your log, the link window says whether you can take it, using Questie's database: Questie's availability verdict, the required level and every previous quest, each marked done or missing.
 - Addon: quest titles come from Questie when the quest is not in your log.
 - Addon: **hovering a Questie "!" icon** (map or minimap) adds the same "can you take it?" lines to its tooltip: Questie's verdict (already completed, in your log, missing pre-quest...), level and previous quests marked done or missing. The lines stay when Questie redraws the tooltip on Shift.
+- Addon: **Alt + click an item for a quest not taken yet** (bags, chat link, loot window) opens that quest on Wowhead with the "can you take it?" lines. It covers items a quest asks for and items that start a quest, skips quests of other races and classes, and lists the other quests in chat when the item serves several. The item tooltip shows the hint. Uses LibQuestieDB (installed with Questie); the item index is built in the background after login.
 
 ### Fixed
 - Companion app: after running for a few minutes, the floating window opened behind the game again. Windows' foreground lock refuses `HWND_TOPMOST` from a background app once its start-up grace period (`ForegroundLockTimeout`) ends. The window is now created topmost from the start, and if Windows still refuses, the call is retried while sharing the game thread's input state (focus does not move).
