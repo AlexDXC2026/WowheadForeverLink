@@ -263,14 +263,39 @@ local function QuestieQuestName(db, questID)
 	if ok and type(name) == "string" then return name end
 end
 
+-- Previous quests that Questie's database leaves out, checked in game.
+-- Each listed quest is required on top of Questie's own pre-quests.
+local MISSING_PREQUESTS = {
+	-- Battle at the Mannoroc Coven (paladin): Katherine the Pure only offers it after
+	-- the Althalaxx Orb chain (the SoD Divine Storm quests), which ends in Return to Delgren.
+	[96438] = { 78093 },
+}
+
+-- Questie's pre-quests that must all be done, plus the missing ones above.
+-- pending: one of the missing ones is not done, so Questie's verdict is wrong.
+local function RequiredGroup(quest, questID)
+	local extra = MISSING_PREQUESTS[questID]
+	if not extra then return quest.preQuestGroup, false end
+	local group, pending = {}, false
+	if type(quest.preQuestGroup) == "table" then
+		for _, id in ipairs(quest.preQuestGroup) do group[#group + 1] = id end
+	end
+	for _, id in ipairs(extra) do
+		group[#group + 1] = id
+		if not IsQuestCompleted(id) then pending = true end
+	end
+	return group, pending
+end
+
 -- Lines that tell whether the player can take the quest, from Questie's database.
 local function QuestRequirements(db, questID)
 	if not (db and db.GetQuest) then return nil end
 	local ok, quest = pcall(db.GetQuest, questID)
 	if not ok or type(quest) ~= "table" then return nil end
 
+	local group, missingPending = RequiredGroup(quest, questID)
 	local lines = { "|cffffd100" .. L.REQ_TITLE .. "|r" }
-	if db.IsDoableVerbose then
+	if db.IsDoableVerbose and not missingPending then
 		local okText, text = pcall(db.IsDoableVerbose, questID, false, true, true)
 		if okText and type(text) == "string" and text ~= "" then lines[#lines + 1] = text end
 	end
@@ -291,7 +316,7 @@ local function QuestRequirements(db, questID)
 		end
 		return true
 	end
-	local hasAll = AddQuests(quest.preQuestGroup, L.REQ_ALL)
+	local hasAll = AddQuests(group, L.REQ_ALL)
 	local hasOne = AddQuests(quest.preQuestSingle, L.REQ_ONE)
 	if not hasAll and not hasOne then lines[#lines + 1] = READY .. L.REQ_NONE end
 	return lines

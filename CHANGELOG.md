@@ -15,6 +15,7 @@ The addon and the companion app share one version number.
 - Addon: **Wowhead icon on RareScanner's "rare found" alert**: NPC page on the loot tab, container contents, or a search for events.
 
 ### Fixed
+- Addon: "Battle at the Mannoroc Coven" (paladin) said "No previous quests required". Questie's database leaves out its pre-quest, the Althalaxx Orb chain ending in "Return to Delgren"; the addon now adds it, and hides Questie's "Available" verdict while it is not done.
 - Companion app: after running for a few minutes, the floating window opened behind the game again. Windows' foreground lock refuses `HWND_TOPMOST` from a background app once its start-up grace period (`ForegroundLockTimeout`) ends. The window is now created topmost from the start, and if Windows still refuses, the call is retried while sharing the game thread's input state (focus does not move).
 
 ## [1.2.1] - 2026-11-18

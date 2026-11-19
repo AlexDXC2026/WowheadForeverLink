@@ -142,6 +142,8 @@ QUESTIE_QUESTS = {
 	[1180] = { name = "A Favor for Krazek", requiredLevel = 30 },
 	[1181] = { name = "Ore for the Goblins" },
 	[900] = { name = "Orcs Only", requiredRaces = 2 },
+	[78093] = { name = "Return to Delgren" },
+	[96438] = { name = "Battle at the Mannoroc Coven", requiredLevel = 35 }, -- Questie lacks its pre-quest
 }
 local questieDB = {
 	GetQuest = function(id) return QUESTIE_QUESTS[id] end,
@@ -347,6 +349,20 @@ check(text:find(ns.L.REQ_ONE, 1, true), "one-of label")
 icon.data = { Id = 700 }
 ALT = true; icon.scripts.OnClick(icon, "LeftButton"); ALT = false
 check(tostring(info().text):find(ns.L.REQ_NONE, 1, true), "no pre-quests line")
+
+-- Pre-quest missing from Questie's data (Battle at the Mannoroc Coven needs the orb chain)
+icon.data = { Id = 96438 }
+ALT = true; icon.scripts.OnClick(icon, "LeftButton"); ALT = false
+text = tostring(info().text)
+check(text:find("ReadyCheck-NotReady:14|t Return to Delgren", 1, true), "missing Questie pre-quest not shown")
+check(not text:find(ns.L.REQ_NONE, 1, true), "says no pre-quests although one is missing")
+check(not text:find("Available", 1, true), "Questie's wrong verdict shown")
+COMPLETED[78093] = true
+ALT = true; icon.scripts.OnClick(icon, "LeftButton"); ALT = false
+text = tostring(info().text)
+check(text:find("ReadyCheck-Ready:14|t Return to Delgren", 1, true), "done pre-quest not marked")
+check(text:find("Available", 1, true), "Questie's verdict hidden once the pre-quest is done")
+COMPLETED[78093] = nil
 
 -- A quest already in the log shows no requirements
 SlashCmdList.WOWHEADFOREVERLINK("q 783")
