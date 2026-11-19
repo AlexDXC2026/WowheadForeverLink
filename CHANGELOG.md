@@ -6,6 +6,10 @@ The addon and the companion app share one version number.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-19
+
+Wowhead Forever Link is a fan project and is still being improved. Please report bugs or wrong quest data in the GitHub issues.
+
 ### Added
 - Addon: **Alt + click on a Questie map icon** (world map or minimap) opens that quest on Wowhead, also for quests you have not taken yet. The icon tooltip shows the hint.
 - Addon: for quests not in your log, the link window says whether you can take it, using Questie's database: Questie's availability verdict, the required level and every previous quest, each marked done or missing.
@@ -17,6 +21,9 @@ The addon and the companion app share one version number.
 ### Fixed
 - Addon: "Battle at the Mannoroc Coven" (paladin) said "No previous quests required". Questie's database leaves out its pre-quest, the Althalaxx Orb chain ending in "Return to Delgren"; the addon now adds it, and hides Questie's "Available" verdict while it is not done.
 - Companion app: after running for a few minutes, the floating window opened behind the game again. Windows' foreground lock refuses `HWND_TOPMOST` from a background app once its start-up grace period (`ForegroundLockTimeout`) ends. The window is now created topmost from the start, and if Windows still refuses, the call is retried while sharing the game thread's input state (focus does not move).
+
+### Changed
+- README and CurseForge page: they say this is an unofficial fan project in progress and where to report problems.
 
 ## [1.2.1] - 2026-11-18
 
@@ -56,6 +63,7 @@ First public release.
 ### Added
 - Target frame button, quest log icons, quest details button, quest giver icon, slash commands and key bindings.
 
-[Unreleased]: https://github.com/AlexDXC2026/WowheadForeverLink/compare/v1.2.1...HEAD
+[Unreleased]: https://github.com/AlexDXC2026/WowheadForeverLink/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/AlexDXC2026/WowheadForeverLink/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/AlexDXC2026/WowheadForeverLink/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/AlexDXC2026/WowheadForeverLink/releases/tag/v1.2.0
