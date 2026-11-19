@@ -15,6 +15,8 @@ Open <a href="https://www.wowhead.com/forever/">Wowhead (WoW Forever)</a> for an
 
 ---
 
+> **Fan project, work in progress.** Wowhead Forever Link is made by a fan in spare time. It is not an official Wowhead or Blizzard product. It is still being improved: features may change, and you may find bugs or quests with incomplete data (quest requirements come from Questie's database). Reports and ideas are welcome in [issues](https://github.com/AlexDXC2026/WowheadForeverLink/issues).
+
 The project has two parts:
 
 | Part | What it does | Where to get it |
@@ -88,6 +90,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the branch, commit and release workfl
 ## Español
 
 Abre **Wowhead (WoW Forever)** con el botín de cualquier PNJ o con cualquier misión, desde el propio juego.
+
+> **Proyecto de fan, en desarrollo.** Lo hace un fan en su tiempo libre; no es un producto oficial de Wowhead ni de Blizzard. Sigue mejorándose: algunas funciones pueden cambiar y puede haber fallos o misiones con datos incompletos (los requisitos salen de la base de datos de Questie). Los avisos e ideas son bienvenidos en [issues](https://github.com/AlexDXC2026/WowheadForeverLink/issues).
 
 **Addon**
 - **Clic derecho en un retrato** (objetivo, foco o jefe) → **Ver en Wowhead**.
