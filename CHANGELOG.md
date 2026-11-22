@@ -6,6 +6,10 @@ The addon and the companion app share one version number.
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-11-22
+
+Wowhead Forever Link is a fan project and is still being improved. Please report bugs or wrong quest data in the GitHub issues.
+
 ### Fixed
 - Addon: "Aeonas's Secret Refuge" (paladin, Harold Riggs in Menethil Harbor) said "No previous quests required". Questie's database leaves out Katherine the Pure's chain before it (Battle at the Mannoroc Coven, The Broken Hammer, A Lost Brother); the addon now adds it and hides Questie's "Available" verdict until it is done.
 - Addon: 18 more quests whose previous quest is missing from Questie's database now list it and no longer say "Available" too early: the rest of the paladin Sheath of Light chain (The Broken Hammer, Orders from the Grand Crusader, By The Light's Grace, Aeonas the Vindicated), Katherine the Pure's later paladin quests, the Dead Drop chain and five other chains. Source: each quest's series on Wowhead (WoW Forever) or a player's Wowhead comment.
@@ -72,7 +76,8 @@ First public release.
 ### Added
 - Target frame button, quest log icons, quest details button, quest giver icon, slash commands and key bindings.
 
-[Unreleased]: https://github.com/AlexDXC2026/WowheadForeverLink/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/AlexDXC2026/WowheadForeverLink/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/AlexDXC2026/WowheadForeverLink/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/AlexDXC2026/WowheadForeverLink/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/AlexDXC2026/WowheadForeverLink/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/AlexDXC2026/WowheadForeverLink/releases/tag/v1.2.0
