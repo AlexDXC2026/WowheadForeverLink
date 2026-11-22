@@ -144,6 +144,12 @@ QUESTIE_QUESTS = {
 	[900] = { name = "Orcs Only", requiredRaces = 2 },
 	[78093] = { name = "Return to Delgren" },
 	[96438] = { name = "Battle at the Mannoroc Coven", requiredLevel = 35 }, -- Questie lacks its pre-quest
+	[79939] = { name = "The Broken Hammer" },
+	[79940] = { name = "A Lost Brother" },
+	[96449] = { name = "Aeonas's Secret Refuge", requiredLevel = 35 }, -- Questie lacks its pre-quests
+	[86777] = { name = "Master Feardred" },
+	[86792] = { name = "Thinning Their Forces" },
+	[86797] = { name = "Return to Rageroar" }, -- Questie lacks its one-of pre-quests
 }
 local questieDB = {
 	GetQuest = function(id) return QUESTIE_QUESTS[id] end,
@@ -363,6 +369,31 @@ text = tostring(info().text)
 check(text:find("ReadyCheck-Ready:14|t Return to Delgren", 1, true), "done pre-quest not marked")
 check(text:find("Available", 1, true), "Questie's verdict hidden once the pre-quest is done")
 COMPLETED[78093] = nil
+
+-- Aeonas's Secret Refuge needs Katherine's chain, also missing from Questie
+icon.data = { Id = 96449 }
+COMPLETED[96438] = true; COMPLETED[79939] = true
+ALT = true; icon.scripts.OnClick(icon, "LeftButton"); ALT = false
+text = tostring(info().text)
+check(text:find("ReadyCheck-Ready:14|t Battle at the Mannoroc Coven", 1, true), "chain start not marked done")
+check(text:find("ReadyCheck-NotReady:14|t A Lost Brother", 1, true), "missing A Lost Brother not shown")
+check(not text:find(ns.L.REQ_NONE, 1, true) and not text:find("Available", 1, true), "Aeonas's Secret Refuge still says available")
+COMPLETED[79940] = true
+ALT = true; icon.scripts.OnClick(icon, "LeftButton"); ALT = false
+check(tostring(info().text):find("Available", 1, true), "verdict hidden once the chain is done")
+COMPLETED[96438] = nil; COMPLETED[79939] = nil; COMPLETED[79940] = nil
+
+-- Return to Rageroar comes after either of two chains, missing from Questie
+icon.data = { Id = 86797 }
+ALT = true; icon.scripts.OnClick(icon, "LeftButton"); ALT = false
+text = tostring(info().text)
+check(text:find(ns.L.REQ_ONE, 1, true), "one-of label for missing branch pre-quests")
+check(text:find("ReadyCheck-NotReady:14|t Master Feardred", 1, true) and text:find("ReadyCheck-NotReady:14|t Thinning Their Forces", 1, true), "branch pre-quests not shown")
+check(not text:find(ns.L.REQ_NONE, 1, true) and not text:find("Available", 1, true), "Return to Rageroar still says available")
+COMPLETED[86792] = true
+ALT = true; icon.scripts.OnClick(icon, "LeftButton"); ALT = false
+check(tostring(info().text):find("Available", 1, true), "verdict hidden although one branch is done")
+COMPLETED[86792] = nil
 
 -- A quest already in the log shows no requirements
 SlashCmdList.WOWHEADFOREVERLINK("q 783")
