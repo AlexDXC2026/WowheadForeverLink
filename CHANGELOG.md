@@ -6,6 +6,9 @@ The addon and the companion app share one version number.
 
 ## [Unreleased]
 
+### Added
+- Companion app: own dark title bar in one row: navigation on the left, page title in the middle, and **minimize**, **maximize / restore** and **close** on the right with Windows' own glyphs. Drag the title bar to move the window, double-click it to maximize, resize from the thin frame. Maximizing fills the screen without taking focus from the game, and the state is remembered. A minimized window comes back with the shortcut, the tray icon or the next copied link.
+
 ## [1.3.1] - 2026-11-22
 
 Wowhead Forever Link is a fan project and is still being improved. Please report bugs or wrong quest data in the GitHub issues.
