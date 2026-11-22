@@ -4,7 +4,7 @@
 ## Notes-esES: Abre Wowhead (Forever) con el botín de PNJ y las misiones: clic derecho en el retrato, botón junto al objetivo e iconos en el registro de misiones.
 ## Notes-esMX: Abre Wowhead (Forever) con el botín de PNJ y las misiones: clic derecho en el retrato, botón junto al objetivo e iconos en el registro de misiones.
 ## Author: AlexDXC2026
-## Version: 1.3.0
+## Version: 1.3.1
 ## Category: Quests
 ## SavedVariables: WowheadForeverLinkDB
 ## OptionalDeps: Questie, RareScanner
