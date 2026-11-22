@@ -17,6 +17,8 @@ jobs:
       TAG: ${{ github.ref_name }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # the previous tag tells whether the companion app changed
 
       - name: Check that the tag matches the addon and app versions
         run: |
@@ -25,6 +27,23 @@ jobs:
           grep -q "^## Version: $VERSION\s*$" WowheadForeverLink/WowheadForeverLink.toc || { echo "::error::.toc version is not $VERSION"; exit 1; }
           grep -q "<Version>$VERSION</Version>" companion/WowheadForeverLink.Companion.csproj || { echo "::error::.csproj version is not $VERSION"; exit 1; }
           grep -q "^## \[$VERSION\]" CHANGELOG.md || { echo "::error::CHANGELOG.md has no [$VERSION] section"; exit 1; }
+
+      - name: Check that players are told about a new companion app
+        run: |
+          PREV=$(git describe --tags --abbrev=0 "$TAG^")
+          echo "PREV=$PREV" >> "$GITHUB_ENV"
+          # Every release bumps <Version> in the .csproj; any other change under companion/ is a new .exe.
+          FILES=$(git diff --name-only "$PREV" "$TAG" -- companion ':!companion/WowheadForeverLink.Companion.csproj')
+          CSPROJ=$(git diff -U0 "$PREV" "$TAG" -- companion/WowheadForeverLink.Companion.csproj | grep '^[+-][^+-]' | grep -v '<Version>' || true)
+          CHANGED="$FILES$CSPROJ"
+          SEEN=$(sed -n 's/^local COMPANION_VERSION = "\(.*\)"/\1/p' WowheadForeverLink/WowheadForeverLink.lua)
+          if [ -n "$CHANGED" ]; then
+            echo "COMPANION_CHANGED=1" >> "$GITHUB_ENV"
+            [ "$SEEN" = "$VERSION" ] || { echo "::error::companion/ changed since $PREV: set COMPANION_VERSION to \"$VERSION\" in WowheadForeverLink.lua so players are told"; exit 1; }
+          else
+            [ "$SEEN" != "$VERSION" ] || { echo "::error::COMPANION_VERSION is $VERSION but companion/ did not change since $PREV"; exit 1; }
+          fi
+          echo "companion changed since $PREV: ${CHANGED:-no} · COMPANION_VERSION=$SEEN"
 
       - uses: actions/setup-node@v7
         with:
@@ -52,11 +71,16 @@ jobs:
 
       - name: Release notes from CHANGELOG.md
         run: |
+          if [ -n "$COMPANION_CHANGED" ]; then
+            printf '> **New companion app (.exe) in this version.** If you use it, download `WowheadForeverLink-Companion.exe` again. In game, `/wh app` shows the link.\n\n' > notes.md
+          else
+            printf '> Companion app (.exe): no changes since %s, keep the one you have.\n\n' "$PREV" > notes.md
+          fi
           awk -v v="$VERSION" '
             $0 ~ "^## \\[" v "\\]" { on = 1; next }
             on && /^## \[/ { exit }
             on { print }
-          ' CHANGELOG.md > notes.md
+          ' CHANGELOG.md >> notes.md
           cat >> notes.md <<'EOF'
 
           ---

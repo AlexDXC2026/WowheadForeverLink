@@ -150,6 +150,7 @@ QUESTIE_QUESTS = {
 	[86777] = { name = "Master Feardred" },
 	[86792] = { name = "Thinning Their Forces" },
 	[86797] = { name = "Return to Rageroar" }, -- Questie lacks its one-of pre-quests
+	[6610] = { name = "Clamlette Surprise", requiredLevel = 35, requiredSkill = { 185, 225 } }, -- Cooking 225
 }
 local questieDB = {
 	GetQuest = function(id) return QUESTIE_QUESTS[id] end,
@@ -182,6 +183,12 @@ local questiePlayer = {
 	HasRequiredRace = function(mask) return not mask or mask == 0 or mask % 2 == 1 end, -- human
 	HasRequiredClass = function() return true end,
 }
+PROFESSIONS = { [185] = { "Cooking", 180 } }
+local questieProfessions = {
+	GetPlayerProfessions = function() return PROFESSIONS end,
+	GetProfessionName = function(_, id) return ({ [185] = "Cooking" })[id] end,
+}
+local questieL10n = setmetatable({}, { __call = function(_, text) return text == "Cooking" and "Cocina" or text end })
 local questieFrames = 1
 local questiePool = {}
 function questiePool:GetFrame()
@@ -200,7 +207,7 @@ function questieTooltip.ShowOnTooltip(icon, tooltip)
 end
 QuestieLoader = {
 	ImportModule = function(_, name)
-		return ({ QuestieDB = questieDB, QuestieFramePool = questiePool, MapIconTooltip = questieTooltip, QuestiePlayer = questiePlayer })[name]
+		return ({ QuestieDB = questieDB, QuestieFramePool = questiePool, MapIconTooltip = questieTooltip, QuestiePlayer = questiePlayer, QuestieProfessions = questieProfessions, l10n = questieL10n })[name]
 	end,
 }
 
@@ -226,6 +233,15 @@ check(ns.wowheadBase == B, "base URL for " .. LOCALE .. ": " .. tostring(ns.wowh
 fire("ADDON_LOADED", "WowheadForeverLink")
 fire("PLAYER_LOGIN")
 check(LOG[#LOG]:find("/wh", 1, true), "load message")
+-- New companion app: told once at login, /wh app shows its download link
+local function countLog(text) local n = 0 for _, line in ipairs(LOG) do if line:find(text, 1, true) then n = n + 1 end end return n end
+local companionNotice = ns.L.COMPANION_UPDATED:match("^(.-)%%s")
+check(countLog(companionNotice) == 1, "companion update notice not shown once")
+check(WowheadForeverLinkDB.companionSeen ~= nil, "companion version not remembered")
+fire("PLAYER_LOGIN")
+check(countLog(companionNotice) == 1, "companion update notice repeated")
+SlashCmdList.WOWHEADFOREVERLINK("app")
+check(lastURL() == "https://github.com/AlexDXC2026/WowheadForeverLink/releases/latest/download/WowheadForeverLink-Companion.exe", "/wh app URL: " .. tostring(lastURL()))
 local b = WowheadForeverLinkTargetButton
 check(b ~= nil and b.parent == TargetFrame, "target button not created on TargetFrame")
 check(WowheadForeverLinkDetailsButton ~= nil, "details button not created")
@@ -394,6 +410,22 @@ COMPLETED[86792] = true
 ALT = true; icon.scripts.OnClick(icon, "LeftButton"); ALT = false
 check(tostring(info().text):find("Available", 1, true), "verdict hidden although one branch is done")
 COMPLETED[86792] = nil
+
+-- Profession skill: Clamlette Surprise needs Cooking 225
+icon.data = { Id = 6610 }
+ALT = true; icon.scripts.OnClick(icon, "LeftButton"); ALT = false
+text = tostring(info().text)
+check(text:find("ReadyCheck-NotReady:14|t " .. ns.L.REQ_SKILL:format("Cooking", 225, 180), 1, true), "missing skill level not shown")
+PROFESSIONS[185][2] = 225
+ALT = true; icon.scripts.OnClick(icon, "LeftButton"); ALT = false
+check(tostring(info().text):find("ReadyCheck-Ready:14|t " .. ns.L.REQ_SKILL:format("Cooking", 225, 225), 1, true), "reached skill level not marked")
+PROFESSIONS[185] = nil -- profession not learned: Questie's translated name, rank 0
+ALT = true; icon.scripts.OnClick(icon, "LeftButton"); ALT = false
+check(tostring(info().text):find("ReadyCheck-NotReady:14|t " .. ns.L.REQ_SKILL:format("Cocina", 225, 0), 1, true), "unlearned profession not shown")
+PROFESSIONS[185] = { "Cooking", 180 }
+icon.data = { Id = 700 }
+ALT = true; icon.scripts.OnClick(icon, "LeftButton"); ALT = false
+check(not tostring(info().text):find(ns.L.REQ_SKILL:gsub("%%.*", ""), 1, true), "skill line on a quest without one")
 
 -- A quest already in the log shows no requirements
 SlashCmdList.WOWHEADFOREVERLINK("q 783")

@@ -8,6 +8,10 @@ The addon and the companion app share one version number.
 
 ### Added
 - Companion app: own dark title bar in one row: navigation on the left, page title in the middle, and **minimize**, **maximize / restore** and **close** on the right with Windows' own glyphs. Drag the title bar to move the window, double-click it to maximize, resize from the thin frame. Maximizing fills the screen without taking focus from the game, and the state is remembered. A minimized window comes back with the shortcut, the tray icon or the next copied link.
+- Addon: when a release brings a new companion app (.exe), the addon says so once in chat at login, and `/wh app` shows the `.exe` download link ready to copy. GitHub release notes also say whether the `.exe` changed.
+
+### Fixed
+- Addon: quests that need a profession skill (for example "Clamlette Surprise", Cooking 225) said only "No previous quests required", so it was not clear why Questie did not show them on the map. The "Can you take it?" lines now show the profession, the required skill and your current skill, marked done or missing.
 
 ## [1.3.1] - 2026-11-22
 
