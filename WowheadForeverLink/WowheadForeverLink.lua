@@ -263,12 +263,85 @@ local function QuestieQuestName(db, questID)
 	if ok and type(name) == "string" then return name end
 end
 
--- Previous quests that Questie's database leaves out, checked in game.
+-- Previous quests that Questie's database leaves out. Sources: the quest's "Series" box on
+-- Wowhead (WoW Forever) or a Wowhead comment from a player who checked it in game.
 -- Each listed quest is required on top of Questie's own pre-quests.
 local MISSING_PREQUESTS = {
-	-- Battle at the Mannoroc Coven (paladin): Katherine the Pure only offers it after
+	-- Paladin, Sheath of Light chain.
+	-- Battle at the Mannoroc Coven: Katherine the Pure only offers it after
 	-- the Althalaxx Orb chain (the SoD Divine Storm quests), which ends in Return to Delgren.
 	[96438] = { 78093 },
+	[79939] = { 96438 }, -- The Broken Hammer
+	-- Aeonas's Secret Refuge: Harold Riggs only offers it after Katherine the Pure's
+	-- chain: Battle at the Mannoroc Coven, The Broken Hammer and A Lost Brother.
+	[96449] = { 96438, 79939, 79940 },
+	[79945] = { 96449 }, -- Orders from the Grand Crusader
+	[79963] = { 79946 }, -- By The Light's Grace
+	[79970] = { 79963 }, -- Aeonas the Vindicated
+	-- Paladin, Katherine the Pure's later chains.
+	[81764] = { 81762 }, -- The Mysterious Merchant
+	[81765] = { 81764 }, -- Elrick, Paladin of the Silver Hand
+	[96476] = { 81766 }, -- In Search of Aeonas
+	-- Dead Drop chain (The Horn of Xelthos).
+	[78699] = { 78261 }, -- The Eye of Bhossca
+	[80453] = { 80411 }, -- Best Laid Plans
+	[80454] = { 80453 }, -- One Last Drop
+	[80455] = { 80454 }, -- Biding Our Time
+	-- Other chains.
+	[81919] = { 81917 }, -- Brought to Heel
+	[82135] = { 81885 }, -- The Price of Hope
+	[84138] = { 84137 }, -- Frosty Favors
+	[84319] = { 84318 }, -- Oh No Ye Don't!
+	[84330] = { 84319 }, -- A Wee Bit O' Necromancy
+	[84414] = { 84330 }, -- Send Me On Me Way
+	[84332] = { 84414 }, -- A Thane's Gratitude
+	-- Found in the 2026-11-22 review of every Forever/SoD quest without pre-quests in Questie.
+	-- Paladin chains.
+	[90902] = { 98601 }, -- Rediscovering the Light (player comment: The Mindless Ones, A Difficult Path, then this)
+	[91209] = { 91208 }, -- Continue Your Training
+	[94971] = { 97022 }, -- A Paladin's Steed
+	[97175] = { 97174 }, -- Due Sacrifice
+	[97177] = { 97175 }, -- Acts of Mercy
+	[97176] = { 97177 }, -- Exorcising Terrordale
+	[97179] = { 97178 }, -- Collection of Goods
+	[97184] = { 97183 }, -- The Divination Scryer
+	[97185] = { 97184 }, -- Justice and Retribution
+	[99187] = { 93030 }, -- The Reliquary of Tyr
+	-- Felwood, Timbermaw chains (Rageroar).
+	[86791] = { 86752 }, -- Missing Blackmaw Scouts
+	[86798] = { 86797 }, -- Timbermaw Reinforcements
+	[87346] = { 86798 }, -- Chieftain Bloodmaw
+	[86814] = { 87346 }, -- Blackmaw Counter-Offensive
+	[92065] = { 86814 }, -- Blackmaw Reclamation
+	[86804] = { 86799 }, -- An Unlikely Source
+	[86925] = { 86804 }, -- Toil and Trouble
+	[86926] = { 86925 }, -- Felfire Burn, Cauldron Bubble
+	[86927] = { 86926 }, -- Running Firewater
+	[86812] = { 86927 }, -- Transmuted Tincture
+	[86813] = { 86812 }, -- Potential Panacea
+	-- New race starts.
+	[94947] = { 94946 }, -- Welcome to Azeroth
+	[95350] = { 95349 }, -- Welcome to Azeroth
+	[96996] = { 97205 }, -- Your First Riding Galestrider
+	-- Other chains.
+	[84146] = { 84135 }, -- Red Bag Blues (player comment)
+	[84212] = { 84211 }, -- Bookin' it Back (player comment)
+	[92008] = { 96796 }, -- Premiere Parts
+	[92465] = { 92464 }, -- Agitators
+	[92702] = { 92094 }, -- Branch Out
+	[93787] = { 93786 }, -- Food for the Taking
+	[95284] = { 95283 }, -- The Elite of the Elite
+	[95809] = { 95647 }, -- Heartwoven
+	[95817] = { 95816 }, -- Rotgath Stonebeard
+	[97169] = { 97168 }, -- The Darkreaver Menace
+	[97242] = { 97246 }, -- Yelmak's Medley
+	[97883] = { 84377 }, -- End of the Dark Horde
+}
+
+-- Same, for quests reached from either of two chains: any one listed quest is enough.
+local MISSING_ONE_PREQUESTS = {
+	[3517] = { 91734, 91735 }, -- Stealing Knowledge (either Remote Contact)
+	[86797] = { 86777, 86792 }, -- Return to Rageroar (Master Feardred or Thinning Their Forces)
 }
 
 -- Questie's pre-quests that must all be done, plus the missing ones above.
@@ -287,6 +360,22 @@ local function RequiredGroup(quest, questID)
 	return group, pending
 end
 
+-- Questie's one-of pre-quests plus the missing ones above.
+-- pending: none of them is done, so Questie's verdict is wrong.
+local function RequiredSingle(quest, questID)
+	local extra = MISSING_ONE_PREQUESTS[questID]
+	if not extra then return quest.preQuestSingle, false end
+	local single, done = {}, false
+	if type(quest.preQuestSingle) == "table" then
+		for _, id in ipairs(quest.preQuestSingle) do single[#single + 1] = id end
+	end
+	for _, id in ipairs(extra) do single[#single + 1] = id end
+	for _, id in ipairs(single) do
+		if IsQuestCompleted(math.abs(id)) then done = true end
+	end
+	return single, not done
+end
+
 -- Lines that tell whether the player can take the quest, from Questie's database.
 local function QuestRequirements(db, questID)
 	if not (db and db.GetQuest) then return nil end
@@ -294,8 +383,9 @@ local function QuestRequirements(db, questID)
 	if not ok or type(quest) ~= "table" then return nil end
 
 	local group, missingPending = RequiredGroup(quest, questID)
+	local single, onePending = RequiredSingle(quest, questID)
 	local lines = { "|cffffd100" .. L.REQ_TITLE .. "|r" }
-	if db.IsDoableVerbose and not missingPending then
+	if db.IsDoableVerbose and not missingPending and not onePending then
 		local okText, text = pcall(db.IsDoableVerbose, questID, false, true, true)
 		if okText and type(text) == "string" and text ~= "" then lines[#lines + 1] = text end
 	end
@@ -317,7 +407,7 @@ local function QuestRequirements(db, questID)
 		return true
 	end
 	local hasAll = AddQuests(group, L.REQ_ALL)
-	local hasOne = AddQuests(quest.preQuestSingle, L.REQ_ONE)
+	local hasOne = AddQuests(single, L.REQ_ONE)
 	if not hasAll and not hasOne then lines[#lines + 1] = READY .. L.REQ_NONE end
 	return lines
 end
