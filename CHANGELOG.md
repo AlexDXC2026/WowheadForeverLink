@@ -6,6 +6,10 @@ The addon and the companion app share one version number.
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-11-23
+
+Wowhead Forever Link is a fan project and is still being improved. Please report bugs or wrong quest data in the GitHub issues.
+
 ### Added
 - Companion app: own dark title bar in one row: navigation on the left, page title in the middle, and **minimize**, **maximize / restore** and **close** on the right with Windows' own glyphs. Drag the title bar to move the window, double-click it to maximize, resize from the thin frame. Maximizing fills the screen without taking focus from the game, and the state is remembered. A minimized window comes back with the shortcut, the tray icon or the next copied link.
 - Addon: when a release brings a new companion app (.exe), the addon says so once in chat at login, and `/wh app` shows the `.exe` download link ready to copy. GitHub release notes also say whether the `.exe` changed.
@@ -83,7 +87,8 @@ First public release.
 ### Added
 - Target frame button, quest log icons, quest details button, quest giver icon, slash commands and key bindings.
 
-[Unreleased]: https://github.com/AlexDXC2026/WowheadForeverLink/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/AlexDXC2026/WowheadForeverLink/compare/v1.3.2...HEAD
+[1.3.2]: https://github.com/AlexDXC2026/WowheadForeverLink/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/AlexDXC2026/WowheadForeverLink/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/AlexDXC2026/WowheadForeverLink/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/AlexDXC2026/WowheadForeverLink/compare/v1.2.0...v1.2.1
