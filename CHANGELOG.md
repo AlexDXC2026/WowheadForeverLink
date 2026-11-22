@@ -12,6 +12,9 @@ The addon and the companion app share one version number.
 - Addon: 36 more quests with a previous quest missing from Questie's database, found by checking every WoW Forever/Season of Discovery quest that Questie lists without pre-quests against its Wowhead series and comments: ten paladin quests (Rediscovering the Light, A Paladin's Steed, the Terrordale and Tyr chains), the Felwood Timbermaw chains, the new race starts and other chains.
 - Addon: quests reached from either of two chains (Stealing Knowledge, Return to Rageroar) list both under "one of" and no longer say "Available" until one is done.
 
+### Changed
+- CurseForge page: it starts with how the links work (click, Ctrl+C) and strongly recommends the companion app, with screenshots of the Wowhead button and of the floating window. `Ctrl+Shift+W` (show or hide the floating window) is now easy to find.
+
 ## [1.3.0] - 2026-11-19
 
 Wowhead Forever Link is a fan project and is still being improved. Please report bugs or wrong quest data in the GitHub issues.
