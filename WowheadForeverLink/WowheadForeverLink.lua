@@ -376,6 +376,31 @@ local function RequiredSingle(quest, questID)
 	return single, not done
 end
 
+-- Profession skill the quest needs (Clamlette Surprise: Cooking 225), with the player's rank.
+local function SkillRequirement(quest)
+	local skill = quest.requiredSkill
+	if type(skill) ~= "table" or type(skill[1]) ~= "number" or type(skill[2]) ~= "number" then return nil end
+	local professions = QuestieModule("QuestieProfessions")
+	local mine
+	if professions and professions.GetPlayerProfessions then
+		local ok, known = pcall(professions.GetPlayerProfessions, professions)
+		if ok and type(known) == "table" and type(known[skill[1]]) == "table" then mine = known[skill[1]] end
+	end
+	local rank = mine and type(mine[2]) == "number" and mine[2] or 0
+	local name = mine and type(mine[1]) == "string" and mine[1] -- the client's own name
+	if not name and professions and professions.GetProfessionName then
+		local ok, english = pcall(professions.GetProfessionName, professions, skill[1])
+		if ok and type(english) == "string" then
+			local l10n = QuestieModule("l10n")
+			local okText, text = false, nil
+			if l10n then okText, text = pcall(l10n, english) end
+			name = okText and type(text) == "string" and text or english
+		end
+	end
+	name = name or L.SKILL:format(skill[1])
+	return (rank >= skill[2] and READY or NOT_READY) .. L.REQ_SKILL:format(name, skill[2], rank)
+end
+
 -- Lines that tell whether the player can take the quest, from Questie's database.
 local function QuestRequirements(db, questID)
 	if not (db and db.GetQuest) then return nil end
@@ -395,6 +420,8 @@ local function QuestRequirements(db, questID)
 	if type(level) == "number" and level > 1 and type(mine) == "number" and not IsSecret(mine) then
 		lines[#lines + 1] = (mine >= level and READY or NOT_READY) .. L.REQ_LEVEL:format(level, mine)
 	end
+	local skill = SkillRequirement(quest)
+	if skill then lines[#lines + 1] = skill end
 
 	local function AddQuests(list, label)
 		if type(list) ~= "table" or not next(list) then return false end
