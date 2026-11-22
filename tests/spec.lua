@@ -233,6 +233,15 @@ check(ns.wowheadBase == B, "base URL for " .. LOCALE .. ": " .. tostring(ns.wowh
 fire("ADDON_LOADED", "WowheadForeverLink")
 fire("PLAYER_LOGIN")
 check(LOG[#LOG]:find("/wh", 1, true), "load message")
+-- New companion app: told once at login, /wh app shows its download link
+local function countLog(text) local n = 0 for _, line in ipairs(LOG) do if line:find(text, 1, true) then n = n + 1 end end return n end
+local companionNotice = ns.L.COMPANION_UPDATED:match("^(.-)%%s")
+check(countLog(companionNotice) == 1, "companion update notice not shown once")
+check(WowheadForeverLinkDB.companionSeen ~= nil, "companion version not remembered")
+fire("PLAYER_LOGIN")
+check(countLog(companionNotice) == 1, "companion update notice repeated")
+SlashCmdList.WOWHEADFOREVERLINK("app")
+check(lastURL() == "https://github.com/AlexDXC2026/WowheadForeverLink/releases/latest/download/WowheadForeverLink-Companion.exe", "/wh app URL: " .. tostring(lastURL()))
 local b = WowheadForeverLinkTargetButton
 check(b ~= nil and b.parent == TargetFrame, "target button not created on TargetFrame")
 check(WowheadForeverLinkDetailsButton ~= nil, "details button not created")

@@ -44,6 +44,7 @@ The project has two parts:
 | `/wh last` | Show the last link again |
 | `/wh reset` | Move the target button back to its place |
 | `/wh diag` | Addon status |
+| `/wh app` | Download link of the companion app (.exe) |
 
 A WoW addon cannot open a browser or write to the clipboard. The addon shows the link pre-selected: press **Ctrl+C** and paste it in your browser, or let the companion app open it for you.
 
@@ -63,6 +64,8 @@ Right-click the tray icon to choose the mode, opacity, "always on top", "start w
 - **Windows SmartScreen** may warn the first time because the app is not code-signed yet: *More info → Run anyway*. You can check the file against the `SHA256SUMS.txt` published with each release.
 
 Settings are stored in `%LOCALAPPDATA%\WowheadForeverLink\config.json` (the shortcut can be changed there).
+
+When a release brings a new `.exe`, the addon tells you once in chat at login; `/wh app` shows the download link.
 
 ## Building from source
 
@@ -102,7 +105,7 @@ Abre **Wowhead (WoW Forever)** con el botín de cualquier PNJ o con cualquier mi
 - **Objetos**: **Alt + clic** en un objeto (bolsas, enlace del chat, ventana de botín) abre su misión en Wowhead: primero una que aún no has cogido, si no una de tu registro. Si no tiene, abre la ficha del objeto. El tooltip de un objeto de misión lo indica. Encontrar la misión necesita Questie y funciona unos segundos después de entrar.
 - **Raros (RareScanner)**: el aviso de "raro encontrado" de RareScanner lleva un icono de Wowhead en la esquina: ficha del PNJ en la pestaña de botín, o el contenido del cofre.
 - **Atajos de teclado** (Opciones → Atajos → Addons).
-- Comandos: `/wh`, `/wh m <id>`, `/wh <texto>`, `/wh ultima`, `/wh reset`, `/wh diag`.
+- Comandos: `/wh`, `/wh m <id>`, `/wh <texto>`, `/wh ultima`, `/wh reset`, `/wh diag`, `/wh app` (enlace del .exe).
 - Los enlaces van siempre a la sección **Forever** de Wowhead, en el **idioma de tu cliente**.
 
 Un addon de WoW no puede abrir el navegador ni copiar al portapapeles: el addon muestra el enlace seleccionado, pulsas **Ctrl+C** y lo pegas en el navegador, o deja que el programa acompañante lo abra solo.

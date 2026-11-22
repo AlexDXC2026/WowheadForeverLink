@@ -10,6 +10,10 @@ local BASE = ns.wowheadBase
 local ICON = "Interface\\AddOns\\" .. ADDON_NAME .. "\\icon.png"
 local GetMetadata = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
 local VERSION = GetMetadata and GetMetadata(ADDON_NAME, "Version") or "?"
+-- Last release that changed the companion app. Raise it only in a release that ships a new .exe:
+-- players are told once, at login, to download it again.
+local COMPANION_VERSION = "1.3.2"
+local COMPANION_URL = "https://github.com/AlexDXC2026/WowheadForeverLink/releases/latest/download/WowheadForeverLink-Companion.exe"
 
 local DB
 local cachedTarget -- last readable data of the target, read when it changed
@@ -988,6 +992,8 @@ local function SlashCommand(text)
 		if id then OpenQuest(id) else Print(L.QUEST_USAGE) end
 	elseif cmd == "last" or cmd == "ultima" or cmd == "última" then
 		if DB.last then ShowURL(DB.last, L.LAST_LINK) else Print(L.NO_LINK_YET) end
+	elseif cmd == "app" or cmd == "exe" or cmd == "programa" then
+		ShowURL(COMPANION_URL, L.COMPANION_TITLE:format(COMPANION_VERSION))
 	elseif cmd == "reset" then
 		DB.x, DB.y = nil, nil
 		if targetButton then PlaceTargetButton() end
@@ -1049,6 +1055,10 @@ events:SetScript("OnEvent", function(_, event, arg1)
 		Safe("quest items", HookQuestItems)
 		Safe("rarescanner", HookRareScanner)
 		Print(L.READY)
+		if DB.companionSeen ~= COMPANION_VERSION then
+			Print(L.COMPANION_UPDATED:format(COMPANION_VERSION))
+			DB.companionSeen = COMPANION_VERSION
+		end
 	elseif event == "PLAYER_TARGET_CHANGED" then
 		Safe("target changed", UpdateTargetButton)
 	end

@@ -25,13 +25,14 @@ Versions follow [SemVer](https://semver.org/) and are shared by the addon and th
 1. On a `chore/release-x.y.z` branch:
    - set `## Version: x.y.z` in `WowheadForeverLink/WowheadForeverLink.toc`;
    - set `<Version>x.y.z</Version>` in `companion/WowheadForeverLink.Companion.csproj`;
-   - move the `[Unreleased]` notes to a new `## [x.y.z] - YYYY-MM-DD` section and update the links at the bottom.
+   - move the `[Unreleased]` notes to a new `## [x.y.z] - YYYY-MM-DD` section and update the links at the bottom;
+   - **if anything under `companion/` changed since the last release** (besides `<Version>`), set `COMPANION_VERSION = "x.y.z"` in `WowheadForeverLink/WowheadForeverLink.lua`. Players are then told once in game to download the new `.exe`. Otherwise leave it as it is. The Release workflow fails if this does not match.
 2. Merge the pull request, then tag `main`:
    ```bash
    git tag -a vx.y.z -m "vx.y.z" && git push origin vx.y.z
    ```
 3. The **Release** workflow checks that the tag matches both versions, runs the tests, builds the `.exe`, zips the addon, writes `SHA256SUMS.txt` and publishes the GitHub release with the changelog notes.
-4. Upload `WowheadForeverLink-vx.y.z.zip` to CurseForge (game version: WoW Forever) with the same notes.
+4. Upload `WowheadForeverLink-vx.y.z.zip` to CurseForge (game version: WoW Forever) with the same notes, including the first line that says whether the companion app changed.
 
 ## Testing in game
 

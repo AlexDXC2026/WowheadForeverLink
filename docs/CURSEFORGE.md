@@ -24,6 +24,7 @@ With the companion app, **Ctrl+C is all you do**: the Wowhead page opens by itse
 - Single `.exe`, nothing to install. Run it and it waits next to the clock.
 - Right-click its icon next to the clock to choose: **floating window** or **Chrome**.
 - The floating window never takes focus away from the game. The mouse wheel scrolls it.
+- **New version of the app?** The addon tells you once in chat after an update, and `/wh app` shows the download link. Addon updates that do not change the app need nothing.
 - Another program already uses `Ctrl+Shift+W`? Change the shortcut in `%LOCALAPPDATA%\WowheadForeverLink\config.json`.
 - Safe: it is a normal Windows window. It never reads, injects into or modifies the game. It only reacts to wowhead.com links copied while WoW is the active window; anything else on your clipboard is ignored and never stored.
 - Open source (MIT). Each release publishes SHA-256 checksums. Windows SmartScreen may warn because the app is not code-signed yet: *More info → Run anyway*.
@@ -54,6 +55,7 @@ It is a Windows program, so CurseForge cannot host it: it is published on [GitHu
 | `/wh <text>` | Search Wowhead |
 | `/wh last` | Show the last link again |
 | `/wh reset` | Move the target button back to its place |
+| `/wh app` | Download link of the companion app (.exe) |
 
 ## Feedback
 
@@ -85,6 +87,7 @@ Con el programa acompañante **solo pulsas Ctrl+C**: la página de Wowhead se ab
 - Un único `.exe`, sin instalar nada. Lo abres y espera junto al reloj.
 - Clic derecho en su icono junto al reloj para elegir: **ventana flotante** o **Chrome**.
 - La ventana flotante nunca le quita el foco al juego. La rueda del ratón la desplaza.
+- **¿Nueva versión del programa?** El addon te avisa una vez en el chat tras actualizar, y `/wh app` te da el enlace de descarga. Si una actualización del addon no cambia el programa, no tienes que hacer nada.
 - ¿Otro programa ya usa `Ctrl+Shift+W`? Cambia el atajo en `%LOCALAPPDATA%\WowheadForeverLink\config.json`.
 - Seguro: es una ventana normal de Windows. Nunca lee, inyecta ni modifica el juego. Solo reacciona a enlaces de wowhead.com copiados con WoW en primer plano; lo demás del portapapeles lo ignora y no lo guarda.
 - Código abierto (MIT). Cada versión publica sumas SHA-256. Windows SmartScreen puede avisar porque aún no está firmado: *Más información → Ejecutar de todas formas*.
@@ -102,4 +105,4 @@ Es un programa de Windows, así que CurseForge no puede alojarlo: se publica en 
 - **Objetos**: **Alt + clic** en un objeto (bolsas, enlace del chat, ventana de botín) abre su misión en Wowhead. Si no tiene, abre la ficha del objeto. Necesita Questie.
 - **Raros (RareScanner)**: el aviso de "raro encontrado" lleva un icono de Wowhead.
 - **Atajos de teclado** (atajos del juego, sección *Wowhead Forever Link*): Wowhead de tu objetivo o de lo que hay bajo el ratón.
-- Comandos: `/wh`, `/wh m <id>`, `/wh <texto>`, `/wh ultima`, `/wh reset`.
+- Comandos: `/wh`, `/wh m <id>`, `/wh <texto>`, `/wh ultima`, `/wh reset`, `/wh app` (enlace del .exe).
