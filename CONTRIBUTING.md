@@ -34,6 +34,17 @@ Versions follow [SemVer](https://semver.org/) and are shared by the addon and th
 3. The **Release** workflow checks that the tag matches both versions, runs the tests, builds the `.exe`, zips the addon, writes `SHA256SUMS.txt` and publishes the GitHub release with the changelog notes.
 4. Upload `WowheadForeverLink-vx.y.z.zip` to CurseForge (game version: WoW Forever) with the same notes, including the first line that says whether the companion app changed.
 
+## Testing the companion updater
+
+Build a copy with an older version and start it with `--update-now`: about 20 seconds later it updates itself to the latest GitHub release without asking.
+
+```bash
+dotnet publish companion -c Release -p:Version=1.0.0 -o test-update
+test-update/WowheadForeverLink.exe --update-now
+```
+
+The updater downloads `WowheadForeverLink-Companion.exe` and `SHA256SUMS.txt` from the release: keep those file names in the Release workflow.
+
 ## Testing in game
 
 Copy `WowheadForeverLink/` to `World of Warcraft/_forever_/Interface/AddOns/`. A newly added addon needs a full game restart; changes to an installed one only need `/reload`. `/wh diag` followed by `/reload` writes the addon status to `WTF/Account/<account>/SavedVariables/WowheadForeverLink.lua`.
