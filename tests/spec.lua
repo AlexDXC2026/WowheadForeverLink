@@ -177,7 +177,8 @@ LibQuestieDB = {
 			local q = QUESTIE_QUESTS[id]; return q and q[key]
 		end,
 	},
-	Item = { Get = function(id, key) if key == "startQuest" and id == 5000 then return 700 end end },
+	-- Like Questie: startQuest is 0 for items that start no quest.
+	Item = { Get = function(id, key) if key == "startQuest" then return id == 5000 and 700 or 0 end end },
 }
 local questiePlayer = {
 	HasRequiredRace = function(mask) return not mask or mask == 0 or mask % 2 == 1 end, -- human
