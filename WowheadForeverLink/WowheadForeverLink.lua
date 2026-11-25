@@ -12,7 +12,7 @@ local GetMetadata = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
 local VERSION = GetMetadata and GetMetadata(ADDON_NAME, "Version") or "?"
 -- Last release that changed the companion app. Raise it only in a release that ships a new .exe:
 -- players are told once, at login, to download it again.
-local COMPANION_VERSION = "1.3.2"
+local COMPANION_VERSION = "1.3.3"
 local COMPANION_URL = "https://github.com/AlexDXC2026/WowheadForeverLink/releases/latest/download/WowheadForeverLink-Companion.exe"
 
 local DB
