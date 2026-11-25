@@ -6,6 +6,9 @@ The addon and the companion app share one version number.
 
 ## [Unreleased]
 
+### Fixed
+- Addon: Alt + click on a quest item (for example "Troll Tribal Necklace") said "no quest selected" instead of opening its quest. Questie stores 0 for items that start no quest, and the addon took that 0 as a quest.
+
 ## [1.3.2] - 2026-11-23
 
 Wowhead Forever Link is a fan project and is still being improved. Please report bugs or wrong quest data in the GitHub issues.
