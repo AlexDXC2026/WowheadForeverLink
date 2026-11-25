@@ -10,6 +10,9 @@ The addon and the companion app share one version number.
 - Companion app: **updates itself**. It checks GitHub 20 seconds after start and then every 6 hours. When there is a newer version, a notice appears next to the clock and an "Update to version x.y.z" item at the top of the tray menu. One click downloads the new `.exe`, checks it against `SHA256SUMS.txt`, replaces the old one in the same folder and restarts. If anything fails, the current one keeps running and the download page opens. Turn the check off with "Notify me of new versions" in the tray menu.
 - Companion app: a newly downloaded `.exe` closes an older copy that is still running (before, it said "already running" and stopped) and moves "Start with Windows" to itself if it pointed to an older or missing copy. Nobody has to find and delete the old file.
 
+### Fixed
+- Addon: Alt + click on a quest item (for example "Troll Tribal Necklace") said "no quest selected" instead of opening its quest. Questie stores 0 for items that start no quest, and the addon took that 0 as a quest.
+
 ## [1.3.2] - 2026-11-23
 
 Wowhead Forever Link is a fan project and is still being improved. Please report bugs or wrong quest data in the GitHub issues.

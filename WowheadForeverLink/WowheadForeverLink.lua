@@ -817,7 +817,8 @@ local function ItemQuest(itemID)
 	local player = QuestieModule("QuestiePlayer")
 	local inLog
 	local function Pending(questID)
-		if type(questID) ~= "number" or IsQuestCompleted(questID) then return false end
+		-- Questie stores 0 when an item starts no quest.
+		if type(questID) ~= "number" or questID <= 0 or IsQuestCompleted(questID) then return false end
 		if player then
 			if player.HasRequiredRace and not player.HasRequiredRace(lib.Quest.Get(questID, "requiredRaces")) then return false end
 			if player.HasRequiredClass and not player.HasRequiredClass(lib.Quest.Get(questID, "requiredClasses")) then return false end
