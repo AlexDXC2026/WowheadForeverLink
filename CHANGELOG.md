@@ -6,6 +6,12 @@ The addon and the companion app share one version number.
 
 ## [Unreleased]
 
+## [1.3.3] - 2026-11-25
+
+Wowhead Forever Link is a fan project and is still being improved. Please report bugs or wrong quest data in the GitHub issues.
+
+If your companion app (.exe) is 1.3.2 or older, download the new one once from GitHub. From this version on it updates itself.
+
 ### Added
 - Companion app: **updates itself**. It checks GitHub 20 seconds after start and then every 6 hours. When there is a newer version, a notice appears next to the clock and an "Update to version x.y.z" item at the top of the tray menu. One click downloads the new `.exe`, checks it against `SHA256SUMS.txt`, replaces the old one in the same folder and restarts. If anything fails, the current one keeps running and the download page opens. Turn the check off with "Notify me of new versions" in the tray menu.
 - Companion app: a newly downloaded `.exe` closes an older copy that is still running (before, it said "already running" and stopped) and moves "Start with Windows" to itself if it pointed to an older or missing copy. Nobody has to find and delete the old file.
@@ -94,7 +100,8 @@ First public release.
 ### Added
 - Target frame button, quest log icons, quest details button, quest giver icon, slash commands and key bindings.
 
-[Unreleased]: https://github.com/AlexDXC2026/WowheadForeverLink/compare/v1.3.2...HEAD
+[Unreleased]: https://github.com/AlexDXC2026/WowheadForeverLink/compare/v1.3.3...HEAD
+[1.3.3]: https://github.com/AlexDXC2026/WowheadForeverLink/compare/v1.3.2...v1.3.3
 [1.3.2]: https://github.com/AlexDXC2026/WowheadForeverLink/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/AlexDXC2026/WowheadForeverLink/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/AlexDXC2026/WowheadForeverLink/compare/v1.2.1...v1.3.0
