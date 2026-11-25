@@ -5,6 +5,8 @@
 // It never touches the game process: it is a normal Windows window.
 // Clipboard text is only checked to see whether it is a wowhead.com link;
 // anything else is ignored and never stored.
+// Besides the Wowhead pages it opens, its only network access is asking
+// GitHub for the latest release number (can be turned off in the tray menu).
 
 using System.Diagnostics;
 using System.Globalization;
@@ -19,19 +21,74 @@ namespace WowheadForeverLink.Companion;
 
 static class Program
 {
+    const string MUTEX_NAME = "WowheadForeverLink.Companion.SingleInstance"; // same name in every version
+    static Mutex? mutex;
+
     [STAThread]
-    static void Main()
+    static void Main(string[] args)
     {
-        using var mutex = new Mutex(true, "WowheadForeverLink.Companion.SingleInstance", out bool isNew);
-        if (!isNew)
+        ApplicationConfiguration.Initialize();
+        if (!AcquireSingleInstance())
         {
             MessageBox.Show(Strings.AlreadyRunning, AppInfo.Name);
             return;
         }
-        ApplicationConfiguration.Initialize();
-        var overlay = new OverlayForm();
+        Updater.CleanUpLeftovers();
+        var overlay = new OverlayForm(justUpdated: args.Contains("--updated"), updateNow: args.Contains("--update-now"));
         Application.Run(new ApplicationContext());
         GC.KeepAlive(overlay);
+        ReleaseSingleInstance();
+    }
+
+    // Only one copy runs at a time. If an older version is already running (for
+    // example the .exe downloaded before this one), it is closed and this one
+    // takes its place, so nobody has to find and close the old one.
+    static bool AcquireSingleInstance()
+    {
+        mutex = new Mutex(false, MUTEX_NAME);
+        // A few seconds of patience: right after an update the previous copy is still closing.
+        if (TryWait(3000)) return true;
+
+        var mine = AppInfo.FileVersion(Application.ExecutablePath);
+        var older = OtherCopies().Where(p => AppInfo.FileVersion(p.path) is Version v && mine != null && v < mine).ToList();
+        if (older.Count == 0) return false; // the same or a newer version is running: leave it
+
+        foreach (var (process, _) in older)
+        {
+            try { process.Kill(); process.WaitForExit(5000); } catch { }
+        }
+        return TryWait(5000);
+    }
+
+    static bool TryWait(int ms)
+    {
+        try { return mutex!.WaitOne(ms); }
+        catch (AbandonedMutexException) { return true; } // the owner was closed: the mutex is now ours
+    }
+
+    public static void ReleaseSingleInstance()
+    {
+        try { mutex?.ReleaseMutex(); } catch { }
+        mutex?.Dispose();
+        mutex = null;
+    }
+
+    // Other running copies of this app, whatever their file name ("WowheadForeverLink-Companion (1).exe"...).
+    static IEnumerable<(Process process, string path)> OtherCopies()
+    {
+        int self = Environment.ProcessId;
+        foreach (var p in Process.GetProcesses())
+        {
+            string? path = null;
+            try
+            {
+                if (p.Id != self && p.ProcessName.StartsWith("Wowhead", StringComparison.OrdinalIgnoreCase))
+                    path = p.MainModule?.FileName;
+            }
+            catch { }
+            if (path != null && FileVersionInfo.GetVersionInfo(path).ProductName == AppInfo.Name) yield return (p, path);
+            else p.Dispose();
+        }
     }
 }
 
@@ -42,6 +99,84 @@ static class AppInfo
         typeof(AppInfo).Assembly.GetName().Version?.ToString(3) ?? "?";
     public static readonly string DataFolder = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WowheadForeverLink");
+    public const string ReleasesUrl = "https://github.com/AlexDXC2026/WowheadForeverLink/releases/latest";
+    public const string LatestReleaseApi = "https://api.github.com/repos/AlexDXC2026/WowheadForeverLink/releases/latest";
+    public const string DownloadBase = "https://github.com/AlexDXC2026/WowheadForeverLink/releases/download/";
+    public const string ReleaseExeName = "WowheadForeverLink-Companion.exe";
+
+    /// <summary>Version of an .exe of this app (1.3.2), or null if it cannot be read.</summary>
+    public static Version? FileVersion(string path)
+    {
+        try
+        {
+            var info = FileVersionInfo.GetVersionInfo(path);
+            return info.ProductName == Name ? new Version(info.FileMajorPart, info.FileMinorPart, info.FileBuildPart) : null;
+        }
+        catch { return null; }
+    }
+}
+
+/// <summary>
+/// Replaces the running .exe with the one published on GitHub, in the same
+/// folder and with the same file name, then restarts it. Windows lets a running
+/// .exe be renamed, so the old file is renamed to .old and deleted on next start.
+/// </summary>
+static class Updater
+{
+    static string ExePath => Application.ExecutablePath;
+    static string NewPath => ExePath + ".new";
+    static string OldPath => ExePath + ".old";
+
+    public static void CleanUpLeftovers()
+    {
+        foreach (var p in new[] { NewPath, OldPath })
+            try { if (File.Exists(p)) File.Delete(p); } catch { }
+    }
+
+    /// <summary>Downloads and checks the new .exe. Throws on any problem; the running .exe is untouched until the end.</summary>
+    public static async Task DownloadAndReplace(HttpClient http, string tag)
+    {
+        if (!Regex.IsMatch(tag, @"^v\d+\.\d+\.\d+$")) throw new InvalidDataException("tag " + tag);
+        string baseUrl = AppInfo.DownloadBase + tag + "/";
+
+        using var shortWait = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        string sums = await http.GetStringAsync(baseUrl + "SHA256SUMS.txt", shortWait.Token);
+        // sha256sum format: "<hash> *<file name>"
+        var expected = sums.Split('\n')
+            .Select(l => Regex.Match(l.Trim(), @"^([0-9a-fA-F]{64})\s+\*?(.+)$"))
+            .FirstOrDefault(m => m.Success && m.Groups[2].Value == AppInfo.ReleaseExeName)
+            ?.Groups[1].Value ?? throw new InvalidDataException("no checksum for " + AppInfo.ReleaseExeName);
+
+        using var longWait = new CancellationTokenSource(TimeSpan.FromMinutes(10));
+        using (var response = await http.GetAsync(baseUrl + AppInfo.ReleaseExeName, HttpCompletionOption.ResponseHeadersRead, longWait.Token))
+        {
+            response.EnsureSuccessStatusCode();
+            await using var file = File.Create(NewPath);
+            await response.Content.CopyToAsync(file, longWait.Token);
+        }
+
+        string actual;
+        await using (var file = File.OpenRead(NewPath))
+            actual = Convert.ToHexString(await System.Security.Cryptography.SHA256.HashDataAsync(file));
+        if (!actual.Equals(expected, StringComparison.OrdinalIgnoreCase))
+        {
+            File.Delete(NewPath);
+            throw new InvalidDataException("checksum mismatch");
+        }
+
+        if (File.Exists(OldPath)) File.Delete(OldPath);
+        File.Move(ExePath, OldPath);
+        try { File.Move(NewPath, ExePath); }
+        catch { File.Move(OldPath, ExePath); throw; } // put the running one back
+    }
+
+    public static void Restart()
+    {
+        Program.ReleaseSingleInstance(); // free it before the new copy starts
+        var psi = new ProcessStartInfo(ExePath) { UseShellExecute = false };
+        psi.ArgumentList.Add("--updated");
+        Process.Start(psi);
+    }
 }
 
 /// <summary>UI strings: Spanish when Windows is in Spanish, English otherwise.</summary>
@@ -81,6 +216,14 @@ static class Strings
                                             "La ventana flotante necesita Microsoft Edge WebView2. Se abre en el navegador. ({0})");
     public static string HotkeyBusy => T("Could not use the shortcut {0} (another program uses it). Change it in config.json.",
                                          "No se pudo usar el atajo {0} (otro programa lo usa). Cámbialo en config.json.");
+    public static string CheckUpdates => T("Notify me of new versions", "Avisarme de versiones nuevas");
+    public static string UpdateAvailable => T("Version {0} is available (you have {1}). Click here to update.",
+                                              "Hay una versión nueva: {0} (tienes la {1}). Haz clic aquí para actualizar.");
+    public static string UpdateTo => T("Update to version {0}", "Actualizar a la versión {0}");
+    public static string Updating => T("Updating to version {0}…", "Actualizando a la versión {0}…");
+    public static string UpdateFailed => T("Could not update ({0}). Opening the download page.",
+                                           "No se pudo actualizar ({0}). Se abre la página de descarga.");
+    public static string Updated => T("Updated to version {0}.", "Actualizado a la versión {0}.");
     public static string WowheadHome => "https://www.wowhead.com/forever/" + (Es ? "es/" : "");
 }
 
@@ -90,6 +233,7 @@ sealed class Config
     public bool AlwaysOnTop { get; set; } = true;
     public bool OnlyFromWow { get; set; } = true;
     public bool DiagnosticLog { get; set; } = false;
+    public bool CheckUpdates { get; set; } = true;
     public double Opacity { get; set; } = 1.0;
     public string Hotkey { get; set; } = "Ctrl+Shift+W";
     public int X { get; set; } = -1;
@@ -160,7 +304,15 @@ sealed class OverlayForm : Form
     Rectangle normalBounds;
     readonly NotifyIcon tray = new();
     readonly ContextMenuStrip menu = new();
-    ToolStripMenuItem? itemFloating, itemChrome, itemPaused, itemOnTop, itemOnlyWow, itemStartup, itemLog;
+    ToolStripMenuItem? itemFloating, itemChrome, itemPaused, itemOnTop, itemOnlyWow, itemStartup, itemLog, itemCheckUpdates;
+    readonly ToolStripMenuItem itemUpdate = new() { Visible = false, Font = new Font(SystemFonts.MenuFont ?? Control.DefaultFont, FontStyle.Bold) };
+    readonly System.Windows.Forms.Timer updateTimer = new();
+    string? newerVersion, newerTag;
+    bool updateBalloonShown;
+    bool balloonIsUpdate;
+    bool updating;
+    bool updateNowRequested; // --update-now: update without asking (used to test the updater)
+    readonly bool justUpdated;
 
     Task? webInit;
     bool webReady;
@@ -170,8 +322,10 @@ sealed class OverlayForm : Form
     DateTime lastTime = DateTime.MinValue;
     bool exiting;
 
-    public OverlayForm()
+    public OverlayForm(bool justUpdated, bool updateNow = false)
     {
+        this.justUpdated = justUpdated;
+        updateNowRequested = updateNow;
         Text = "Wowhead";
         // Borderless, with our own title bar (navigation + minimize, maximize and
         // close in one row). WS_EX_TOOLWINDOW (CreateParams) keeps it out of the
@@ -274,6 +428,8 @@ sealed class OverlayForm : Form
         bool listening = AddClipboardFormatListener(Handle);
         Log($"start v{AppInfo.Version} · clipboard listener = {listening} · mode = {cfg.Mode} · only WoW = {cfg.OnlyFromWow}");
         RegisterConfiguredHotkey();
+        RepointStartup();
+        StartUpdateChecks();
     }
 
     protected override void WndProc(ref Message m)
@@ -437,6 +593,8 @@ sealed class OverlayForm : Form
     void CreateTray()
     {
         menu.Items.Add(new ToolStripMenuItem($"{AppInfo.Name} v{AppInfo.Version}") { Enabled = false });
+        itemUpdate.Click += (_, _) => _ = UpdateNow();
+        menu.Items.Add(itemUpdate); // shown only when GitHub has a newer version
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(new ToolStripMenuItem(Strings.OpenLinksIn) { Enabled = false });
         itemFloating = new ToolStripMenuItem(Strings.Floating, null, (_, _) => SetMode("floating"));
@@ -473,6 +631,12 @@ sealed class OverlayForm : Form
         menu.Items.Add(itemOnlyWow);
         itemStartup = new ToolStripMenuItem(Strings.StartWithWindows, null, (_, _) => { ToggleStartup(); RefreshMenu(); });
         menu.Items.Add(itemStartup);
+        itemCheckUpdates = new ToolStripMenuItem(Strings.CheckUpdates, null, (_, _) =>
+        {
+            cfg.CheckUpdates = !cfg.CheckUpdates; cfg.Save(); RefreshMenu();
+            if (cfg.CheckUpdates) _ = CheckForUpdate();
+        });
+        menu.Items.Add(itemCheckUpdates);
 
         var diagnostics = new ToolStripMenuItem(Strings.DiagnosticLog);
         itemLog = new ToolStripMenuItem(Strings.DiagnosticLog, null, (_, _) =>
@@ -496,9 +660,14 @@ sealed class OverlayForm : Form
         tray.Text = AppInfo.Name;
         tray.ContextMenuStrip = menu;
         tray.DoubleClick += (_, _) => ToggleOverlay();
+        // Clicking the "new version" balloon opens the download page; other balloons do nothing.
+        tray.BalloonTipClicked += (_, _) => { if (balloonIsUpdate) _ = UpdateNow(); balloonIsUpdate = false; };
+        tray.BalloonTipClosed += (_, _) => balloonIsUpdate = false;
         tray.Visible = true;
         RefreshMenu();
-        tray.ShowBalloonTip(3000, AppInfo.Name, string.Format(Strings.Listening, ModeName()), ToolTipIcon.Info);
+        tray.ShowBalloonTip(3000, AppInfo.Name,
+            justUpdated ? string.Format(Strings.Updated, AppInfo.Version) : string.Format(Strings.Listening, ModeName()),
+            ToolTipIcon.Info);
     }
 
     void RefreshMenu()
@@ -511,6 +680,11 @@ sealed class OverlayForm : Form
         itemOnlyWow!.Checked = cfg.OnlyFromWow;
         itemStartup!.Checked = StartupEnabled();
         itemLog!.Checked = cfg.DiagnosticLog;
+        itemCheckUpdates!.Checked = cfg.CheckUpdates;
+        itemUpdate.Visible = (cfg.CheckUpdates && newerVersion != null) || updating;
+        itemUpdate.Enabled = !updating;
+        if (newerVersion != null)
+            itemUpdate.Text = string.Format(updating ? Strings.Updating : Strings.UpdateTo, newerVersion);
         var title = AppInfo.Name + " · " + ModeName();
         tray.Text = title.Length > 63 ? title[..63] : title; // NotifyIcon text limit
     }
@@ -767,6 +941,26 @@ sealed class OverlayForm : Form
         catch { return false; }
     }
 
+    // "Start with Windows" stores the path of the .exe. If it points to an older
+    // copy (or to one that no longer exists), point it to this one instead, so
+    // Windows does not keep starting the old version.
+    void RepointStartup()
+    {
+        try
+        {
+            using var k = Registry.CurrentUser.OpenSubKey(RUN_KEY, true);
+            if (k?.GetValue(RUN_VALUE) is not string value) return; // not enabled
+            var target = value.Trim().Trim('"');
+            if (target.Equals(Application.ExecutablePath, StringComparison.OrdinalIgnoreCase)) return;
+            var mine = AppInfo.FileVersion(Application.ExecutablePath);
+            var theirs = File.Exists(target) ? AppInfo.FileVersion(target) : null;
+            if (mine == null || (theirs != null && theirs >= mine)) return;
+            k.SetValue(RUN_VALUE, "\"" + Application.ExecutablePath + "\"");
+            Log($"start with Windows moved from {target} (v{theirs?.ToString(3) ?? "?"})");
+        }
+        catch { }
+    }
+
     static void ToggleStartup()
     {
         try
@@ -779,10 +973,103 @@ sealed class OverlayForm : Form
         catch { }
     }
 
+    // -------------------------------------------------------------- updates
+    // Asks GitHub for the latest release 20 s after start and then every 6 hours
+    // (well under GitHub's 60 requests per hour). Only the version number is read;
+    // nothing is downloaded or installed. Any network error is ignored.
+    static readonly HttpClient http = CreateHttpClient();
+
+    static HttpClient CreateHttpClient()
+    {
+        // No global timeout: each request sets its own (the .exe is ~70 MB).
+        var client = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("WowheadForeverLink-Companion/" + AppInfo.Version);
+        client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+        return client;
+    }
+
+    void StartUpdateChecks()
+    {
+        updateTimer.Interval = 20_000;
+        updateTimer.Tick += (_, _) =>
+        {
+            updateTimer.Interval = 6 * 60 * 60 * 1000;
+            if (cfg.CheckUpdates) _ = CheckForUpdate();
+        };
+        updateTimer.Start();
+    }
+
+    async Task CheckForUpdate()
+    {
+        try
+        {
+            using var wait = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            using var doc = JsonDocument.Parse(await http.GetStringAsync(AppInfo.LatestReleaseApi, wait.Token));
+            var tag = doc.RootElement.GetProperty("tag_name").GetString() ?? "";
+            var latest = ParseVersion(tag);
+            var current = ParseVersion(AppInfo.Version);
+            Log($"update check: latest = {tag}, current = {AppInfo.Version}");
+            if (latest == null || current == null || latest <= current) return;
+
+            newerVersion = latest.ToString(3);
+            newerTag = tag;
+            RefreshMenu();
+            if (updateNowRequested) { updateNowRequested = false; _ = UpdateNow(); return; }
+            if (updateBalloonShown) return; // the balloon once per run; the menu item stays
+            updateBalloonShown = true;
+            balloonIsUpdate = true;
+            tray.ShowBalloonTip(10000, AppInfo.Name,
+                string.Format(Strings.UpdateAvailable, newerVersion, AppInfo.Version), ToolTipIcon.Info);
+        }
+        catch (Exception ex) { Log("update check failed: " + ex.GetType().Name); }
+    }
+
+    // "v1.3.2" or "1.3.2" -> 1.3.2 (missing parts count as 0).
+    static Version? ParseVersion(string text)
+    {
+        var m = Regex.Match(text, @"^v?(\d+)\.(\d+)(?:\.(\d+))?");
+        if (!m.Success) return null;
+        return new Version(int.Parse(m.Groups[1].Value), int.Parse(m.Groups[2].Value),
+            m.Groups[3].Success ? int.Parse(m.Groups[3].Value) : 0);
+    }
+
+    static void OpenReleasesPage()
+    {
+        try { Process.Start(new ProcessStartInfo(AppInfo.ReleasesUrl) { UseShellExecute = true }); } catch { }
+    }
+
+    // Downloads the new .exe, checks it against SHA256SUMS.txt of the same release,
+    // puts it in place of this one and restarts. If anything fails, this copy keeps
+    // running unchanged and the download page opens instead.
+    async Task UpdateNow()
+    {
+        if (updating || newerTag == null) return;
+        updating = true;
+        RefreshMenu();
+        tray.ShowBalloonTip(3000, AppInfo.Name, string.Format(Strings.Updating, newerVersion), ToolTipIcon.None);
+        try
+        {
+            Log($"update: downloading {newerTag}");
+            await Updater.DownloadAndReplace(http, newerTag);
+            Log("update: replaced, restarting");
+            Updater.Restart();
+            ExitApp();
+        }
+        catch (Exception ex)
+        {
+            Log($"update failed: {ex.GetType().Name}: {ex.Message}");
+            updating = false;
+            RefreshMenu();
+            tray.ShowBalloonTip(5000, AppInfo.Name, string.Format(Strings.UpdateFailed, ex.Message), ToolTipIcon.Warning);
+            OpenReleasesPage();
+        }
+    }
+
     // ----------------------------------------------------------------- exit
     void ExitApp()
     {
         exiting = true;
+        updateTimer.Stop();
         SaveBounds();
         cfg.Save();
         try { RemoveClipboardFormatListener(Handle); UnregisterHotKey(Handle, HOTKEY_ID); } catch { }

@@ -60,12 +60,16 @@ Right-click the tray icon to choose the mode, opacity, "always on top", "start w
 
 - **Nothing to install**: a single `.exe` (.NET included). The floating window uses Microsoft Edge WebView2, which ships with Windows 10 and 11.
 - **Safe for your account**: it is a normal window. It does not read, inject into or modify the game.
-- **Privacy**: it only reacts to `https://wowhead.com/...` links copied while WoW is the active window. Any other clipboard content is ignored and never stored. No network access except the Wowhead pages you open.
+- **Privacy**: it only reacts to `https://wowhead.com/...` links copied while WoW is the active window. Any other clipboard content is ignored and never stored. No network access except the Wowhead pages you open and a version check against GitHub's public releases (20 seconds after start and every 6 hours; it only reads the latest version number and downloads the new `.exe` only when you click "Update"; turn it off with "Notify me of new versions").
 - **Windows SmartScreen** may warn the first time because the app is not code-signed yet: *More info → Run anyway*. You can check the file against the `SHA256SUMS.txt` published with each release.
 
 Settings are stored in `%LOCALAPPDATA%\WowheadForeverLink\config.json` (the shortcut can be changed there).
 
-When a release brings a new `.exe`, the addon tells you once in chat at login; `/wh app` shows the download link.
+**Updates**: when a newer version is published on GitHub, the app shows a notice next to the clock and an "Update to version x.y.z" item at the top of its tray menu. One click downloads the new `.exe`, checks it against the release's `SHA256SUMS.txt`, puts it in place of the old one (same folder, same name) and restarts. If anything fails, the old one keeps working and the download page opens.
+
+If you download a new `.exe` by hand, just run it: it closes an older copy that is still running and moves "Start with Windows" to itself. You do not need to find or delete the old file.
+
+Copies older than this feature do not check for updates: the addon tells you once in chat at login when a release brings a new `.exe`, and `/wh app` shows the download link.
 
 ## Building from source
 
